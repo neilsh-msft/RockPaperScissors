@@ -315,6 +315,7 @@ namespace RockPaperScissors
             // only takes a list of indices.
 //            fingers = Cv2.ConvexHull(contour, clockwise: true);
 
+            // Get the convex hull of the entire hand/arm
             int[] indices = Cv2.ConvexHullIndices(contour, clockwise: true);
             List<Point> pts = new List<Point>(indices.Length);
             foreach (int i in indices)
@@ -325,6 +326,7 @@ namespace RockPaperScissors
             fingers = pts.ToArray();
             Cv2.Polylines(myframe, new Point[][] { fingers }, true, hullClr, 4, LineTypes.Link8);
 
+            // Find the convexity defects that indicate the edges of the palm
             defects = Cv2.ConvexityDefects(contour, indices);
             pts = new List<Point>();
 
@@ -339,6 +341,7 @@ namespace RockPaperScissors
                 }
             }
             palm = pts.ToArray();
+            Cv2.Polylines(myframe, new Point[][] { palm }, true, hullClr, 4, LineTypes.Link8);
         }
 
         public int GetPalmCenter()
@@ -392,8 +395,12 @@ namespace RockPaperScissors
                 }
 
                 fingerdft = fingerList.ToArray();
+                return fingerdft.Length;
             }
-            return fingerdft.Length;
+            else
+            {
+                return 0;
+            }
         }
 
         /// <summary>
