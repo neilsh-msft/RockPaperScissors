@@ -100,8 +100,11 @@ namespace RockPaperScissors
 
                     detector.SkinColorModel(mat, faceRegion.Value, out maxYCrCb, out minYCrCb);
                     mask = detector.HandDetection(mat, faceRegion.Value, maxYCrCb, minYCrCb);
-                    detector.GetPalmCenter();
-                    detector.GetFingerTips();
+                    int dfts = detector.GetPalmCenter();
+                    if (dfts > 0)
+                    {
+                        int tips = detector.GetFingerTips();
+                    }
 
                     SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
                     SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
@@ -136,6 +139,16 @@ namespace RockPaperScissors
             if (image.Type() == MatType.CV_8UC4)
             {
                 System.Runtime.InteropServices.Marshal.Copy(image.Data, bytes, 0, bytes.Length);
+            }
+            else if (image.Type() == MatType.CV_8UC3)
+            {
+                Mat C255 = new Mat(image.Size(), MatType.CV_8UC1, new Scalar(255));
+                Mat temp = new Mat(image.Size(), MatType.CV_8UC4);
+
+                Mat[] channels = Cv2.Split(image);
+                Cv2.Merge(new Mat[] { channels[0], channels[1], channels[2], C255 }, temp);
+
+                System.Runtime.InteropServices.Marshal.Copy(temp.Data, bytes, 0, bytes.Length);
             }
             else if (image.Type() == MatType.CV_8UC1)
             {
