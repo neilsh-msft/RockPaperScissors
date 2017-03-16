@@ -41,6 +41,14 @@ namespace RockPaperScissors
         }
     }
 
+    public enum HandResult
+    {
+        None,
+        Rock,
+        Paper,
+        Scissors
+    }
+
     class HandDetect
     {
         private Rect[] faces;
@@ -64,8 +72,10 @@ namespace RockPaperScissors
         Point[] palm = null;
         Vec4i[] defects = null;
 
+        RotatedRect arm;
         Point armCenter;
         Point palmCenter;
+        double aspectRatio;
         int palmRadius;
         
         public Mat myframe;
@@ -79,7 +89,7 @@ namespace RockPaperScissors
         {
             myframe = frame.Clone();
 
-            palmClr = yellow;
+            palmClr = cyan;
             faceClr = magenta;
             fingerTipClr = black;
             armClr = yellow;
@@ -90,22 +100,22 @@ namespace RockPaperScissors
         {
         }
 
-        public Rect? FaceDetect(Mat frame, CascadeClassifier faceClassifier)
+        public Rect FaceDetect(Mat frame, CascadeClassifier faceClassifier)
         {
-            Mat frame_gray;
-            Rect? p = null;
+            Mat grayscale;
+            Rect p = new Rect();
 
-            frame_gray = frame.CvtColor(ColorConversionCodes.BGRA2GRAY).EqualizeHist();
+            grayscale = frame.CvtColor(ColorConversionCodes.BGRA2GRAY).EqualizeHist();
 
-            faces = faceClassifier.DetectMultiScale(frame_gray, 1.1, 2, HaarDetectionType.ScaleImage, new Size(30, 30));
+            faces = faceClassifier.DetectMultiScale(grayscale, 1.1, 2, HaarDetectionType.ScaleImage, new Size(30, 30));
             foreach (Rect face in faces)
             {
-                // highlight the face
+                // highlight each face
                 Point center = new Point(face.X + face.Width * 0.5, face.Y + face.Height * 0.5);
                 myframe.Ellipse(center, new Size(face.Width * 0.5, face.Height * 0.5), 0, 0, 360, faceClr, 4, LineTypes.Link8, 0);
 
                 // choose the largest
-                if (!p.HasValue || (face.Area() > p.Value.Area()))
+                if (face.Area() > p.Area())
                 {
                     p = face;
                 }
@@ -114,13 +124,14 @@ namespace RockPaperScissors
             return p;
         }
 
-        public void SkinColorModel(Mat frame, Rect faceregion, out Vec3i maxYCrCb, out Vec3i minYCrCb)
+        public void SkinColorModel(Mat frame, Rect faceregion, out Vec3b maxYCrCb, out Vec3b minYCrCb)
         {
-            Mat mask = Mat.Zeros(frame.Size(), MatType.CV_8UC1);
-            Mat p = frame.CvtColor(ColorConversionCodes.BGR2YCrCb);
+            Mat roiMap = Mat.Zeros(frame.Size(), MatType.CV_8UC1);
+            Mat bgrMap = frame.CvtColor(ColorConversionCodes.BGRA2BGR);
+            Mat lumMap = bgrMap.CvtColor(ColorConversionCodes.BGR2YCrCb);
 
-            maxYCrCb = new Vec3i(295, -1, -1);
-            minYCrCb = new Vec3i(-1, 295, 295);
+            maxYCrCb = new Vec3b(255, 0, 0);
+            minYCrCb = new Vec3b(0, 255, 255);
 
             if (faceregion.Area() > 5)
             {
@@ -132,8 +143,8 @@ namespace RockPaperScissors
                     {
                         int r, b, g;
                         int y, cb, cr;
-                        Vec4b bgr = frame.At<Vec4b>(j, i);
-                        Vec4b yCrCb = p.At<Vec4b>(j, i);
+                        Vec3b bgr = bgrMap.At<Vec3b>(j, i);
+                        Vec3b yCrCb = lumMap.At<Vec3b>(j, i);
 
                         r = bgr.Item2;
                         b = bgr.Item0;
@@ -144,10 +155,18 @@ namespace RockPaperScissors
                         cb = yCrCb.Item2;
 
                         int gray = (int)(0.299 * r + 0.587 * g + 0.114 * b);
+
+#if true
                         if ((gray < 200 /* 200 */) && (gray > 40 /* 40 */)
-                            && (b > g) && (r > b)) // (b > g) && (r > b))
+                            && (b > g - 10) && (r > b)) // (b > g) && (r > b))
                         {
-                            mask.Set<byte>(j, i, 255);
+#else
+                        if ((r > 95) && (g > 40) && (b > 20) &&
+                            ((Math.Max(Math.Max(r, g), b) - Math.Min(Math.Min(r, g), b)) > 15) &&
+                            (Math.Abs(r - g) > 15) && (r > g) && (r > b))
+                        { 
+#endif
+                        roiMap.Set<byte>(j, i, 255);
 
                             maxYCrCb.Item0 = Math.Max(maxYCrCb.Item0, yCrCb.Item0);
                             maxYCrCb.Item1 = Math.Max(maxYCrCb.Item1, yCrCb.Item1);
@@ -162,14 +181,15 @@ namespace RockPaperScissors
             }
             else
             {
-                maxYCrCb = new Vec3i(255, 173, 127);
-                minYCrCb = new Vec3i(0, 133, 77);
+                maxYCrCb = new Vec3b(255, 173, 127);
+                minYCrCb = new Vec3b(0, 133, 77);
             }
 
-            mask1 = mask.Clone();
+            //Cv2.InRange(lumMap, (Scalar)minYCrCb, (Scalar)maxYCrCb, roiMap);
+            mask1 = roiMap.Clone();
         }
 
-        public Mat HandDetection(Mat frame, Rect faceRegion, Vec3i maxYCrCb, Vec3i minYCrCb)
+        public Mat HandDetection(Mat frame, Rect faceRegion, Vec3b maxYCrCb, Vec3b minYCrCb)
         {
             // create a single channel mask
             Mat mask = Mat.Zeros(frame.Size(), MatType.CV_8UC1);
@@ -246,7 +266,7 @@ namespace RockPaperScissors
             Cv2.Erode(mask, mask, null, null, 2);
 
             // enlarge the areas within the mask to attempt to join them
-            Mat element = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(5,10));
+            Mat element = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(10,10));
             Cv2.Dilate(mask, mask, element, null, 1);
 
             mask3 = mask.Clone();
@@ -272,10 +292,19 @@ namespace RockPaperScissors
                 Cv2.DrawContours(mask, new Point[][] { contour }, 0, new Scalar(50), thickness: -1, maxLevel: 1, lineType: LineTypes.AntiAlias);
                 Cv2.DrawContours(mask, new Point[][] { contour }, 0, new Scalar(100), thickness: 2, maxLevel: 1, lineType: LineTypes.AntiAlias);
 
-                RotatedRect center = Cv2.MinAreaRect(contour);
-                armCenter.X = (int)Math.Round(center.Center.X);
-                armCenter.Y = (int)Math.Round(center.Center.Y);
-                Point[] armPts = { center.Points()[0], center.Points()[1], center.Points()[2], center.Points()[3] };
+                arm = Cv2.MinAreaRect(contour);
+                if (Math.Abs(arm.Angle) < 45)
+                {
+                    aspectRatio = arm.Size.Width / arm.Size.Height;
+                }
+                else
+                {
+                    aspectRatio = arm.Size.Height / arm.Size.Width;
+                }
+
+                armCenter.X = (int)Math.Round(arm.Center.X);
+                armCenter.Y = (int)Math.Round(arm.Center.Y);
+                Point[] armPts = { arm.Points()[0], arm.Points()[1], arm.Points()[2], arm.Points()[3] };
                 Cv2.Polylines(myframe, new Point[][] { armPts }, true, armClr, 4, LineTypes.Link8);
 
                 // find palm center
@@ -301,16 +330,19 @@ namespace RockPaperScissors
                 } 
                 cvCircle(&myframe_ipl, center, 10, CV_RGB(255, 0,0), -1, 8, 0);
 */
-
-                Get_hull();
             }
             mask4 = mask.Clone();
 
             return mask;
         }
 
-        public void Get_hull()
+        public void GetHull()
         {
+            if (contour == null)
+            {
+                return;
+            }
+
             // Would like to use Cv2.ConvexHull() that returns an array of Points, but ConvexityDefects
             // only takes a list of indices.
 //            fingers = Cv2.ConvexHull(contour, clockwise: true);
@@ -330,10 +362,13 @@ namespace RockPaperScissors
             defects = Cv2.ConvexityDefects(contour, indices);
             pts = new List<Point>();
 
+            // use 1/15th of average of width and height of hand/wrist as discriminator
+            double discriminator = Math.Max(10.0, (arm.Size.Width + arm.Size.Height) / 30.0);
             foreach (Vec4i d in defects)
             {
                 // (a.k.a.cv::Vec4i): (start_index, end_index, farthest_pt_index, fixpt_depth), 
-                if ((d.Item3 / 256) > 10) // depth
+                double depth = d.Item3 / 256.0;
+                if (depth > discriminator)
                 {
                     Point p = contour[d.Item2];
                     Cv2.Circle(myframe, p, 5, palmClr, -1, LineTypes.AntiAlias);
@@ -369,10 +404,11 @@ namespace RockPaperScissors
                 palmRadius /= palm.Length;
 
                 // if the palm is higher than the arm center use the arm center
-                if (palmCenter.Y > armCenter.Y)
+/*                if (palmCenter.Y > armCenter.Y)
                 {
                     palmCenter = armCenter;
                 }
+*/
 
                 if (palm.Length < 3)
                 {
@@ -383,11 +419,23 @@ namespace RockPaperScissors
                 Cv2.Ellipse(myframe, palmCenter, new Size(palmRadius, palmRadius), 0, 0, 360, palmClr, 4, LineTypes.Link8);
                 Cv2.Line(myframe, palmCenter, armCenter, palmClr, 4, LineTypes.Link8);
 
+#if false
+                // bounding box -- upright hand
+                Point lowerLeft = new Point(palmCenter.X - palmRadius * 1.9, palmCenter.Y - palmRadius * 1.5);
+                Point upperRight = new Point(palmCenter.X + palmRadius * 1.9, palmCenter.Y + palmRadius * 1.5);
+#else
+                // bounding box -- upright hand
+                Point lowerLeft = new Point(palmCenter.X - palmRadius * 1.5, palmCenter.Y - palmRadius * 1.9);
+                Point upperRight = new Point(palmCenter.X + palmRadius * 1.5, palmCenter.Y + palmRadius * 1.9);
+#endif
+
+                Cv2.Rectangle(myframe, lowerLeft, upperRight, palmClr, 4, LineTypes.Link8);
+
                 List<Point>fingerList = new List<Point>();
                 foreach (Point p in palm)
                 {
-                    if ((palmCenter.X - palmRadius * 1.9 < p.X) && (palmCenter.X + palmRadius * 1.9 > p.X) &&
-                        (palmCenter.Y - palmRadius * 1.5 < p.Y) && (palmCenter.Y + palmRadius * 1.5 > p.Y))
+                    if ((lowerLeft.X < p.X) && (upperRight.X > p.X) &&
+                        (lowerLeft.Y < p.Y) && (upperRight.Y > p.Y))
                     {
                         fingerList.Add(p);
                         Cv2.Circle(myframe, p, 5, fingerTipClr, -1, LineTypes.AntiAlias);
@@ -410,9 +458,9 @@ namespace RockPaperScissors
         /// <param name="b"></param>
         /// <param name="c"></param>
         /// <returns>cosine value</returns>
-        double Cosine(Point b, Point c)
+        double Cosine(Point a, Point b, Point c)
         {
-            return Point.DotProduct(b - palmCenter, c - palmCenter) / Point.Distance(b, palmCenter) * Point.Distance(c, palmCenter);
+            return Point.DotProduct(b - a, c - a) / (Point.Distance(b, a) * Point.Distance(c, a));
         }
 
         public int GetFingerTips()
@@ -428,6 +476,8 @@ namespace RockPaperScissors
             {
                 return 0;
             }
+
+#if false
 
             gaps.AddRange(fingerdft);
             gaps.Add(new Point(-1, 0)); // lower bound
@@ -459,6 +509,40 @@ namespace RockPaperScissors
                     Cv2.Circle(myframe, p, 5, fingerTipClr, -1, LineTypes.AntiAlias);
                 }
             }
+#else
+            // Right hand sideways
+            gaps.AddRange(fingerdft);
+            gaps.Add(new Point(0, -1)); // lower bound
+            gaps.Add(new Point(0, 30000));
+            gaps.Add(new Point(0, 30001)); // upper bound
+
+            gaps.Sort(delegate (Point a, Point b)
+            {
+                return (int)a.Y - b.Y;
+            });
+
+            possibleTips.AddRange(fingers);
+            possibleTips.Sort(delegate (Point a, Point b)
+            {
+                return (int)a.Y - b.Y;
+            });
+
+            tmp = palmCenter;
+            tmp.X = -999;
+
+            foreach (Point p in possibleTips)
+            {
+                double cos = Cosine(palmCenter, tmp, p);
+                if ((cos < 0.98) &&
+                    (p.X < palmCenter.X + 0.8 * palmRadius) &&
+                    (Point.Distance(palmCenter, p) > palmRadius * 1.87))
+                {
+                    fingerCount++;
+                    tmp = p;
+                    Cv2.Circle(myframe, p, 5, fingerTipClr, -1, LineTypes.AntiAlias);
+                }
+            }
+#endif
 
             /*
 413 	char tmp[30]; 
@@ -467,6 +551,46 @@ namespace RockPaperScissors
 416 	cvPutText(&frame, tmp, cvPoint(10, 50), &Font1, CV_RGB(255, 0, 0)); 
 */
             return fingerCount;
+        }
+
+        public HandResult Detect(int tips, int defects)
+        {
+            HandResult result = HandResult.None;
+
+            if (contour == null)
+            {
+                return result;
+            }
+
+            if (tips >= 4 && defects >= 3 && tips <= 6 && defects < 5)
+            {
+                result = HandResult.Paper;
+            }
+            else if (tips == 0 && defects >= 2 && defects <= 5 && aspectRatio > 1.7)
+            {
+                result = HandResult.Paper;  // open palm with all fingers together
+            }
+            else if (tips == 0 && aspectRatio > 1.7)
+            {
+                result = HandResult.Paper;
+            }
+            else if (tips == 0)
+            {
+                result = HandResult.Rock;
+            }
+            else if (tips >= 1 && tips <= 2 && defects >= 2 && defects <= 4)
+            {
+                result = HandResult.Scissors;
+            }
+            else if (tips == 3 && defects >= 2 && defects <= 3)
+            {
+                result = HandResult.Scissors;
+            }
+            else if (tips == 3 && defects >= 4 && defects <= 5)
+            {
+                result = HandResult.Paper;
+            }
+            return result;
         }
     }
 }

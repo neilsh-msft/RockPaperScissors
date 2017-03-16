@@ -42,6 +42,8 @@ namespace RockPaperScissors
     {
         private MediaCapture _mediaCapture;
         private bool _isPreviewing;
+        private bool _captureBackGround;
+        private Mat _background;
         DisplayRequest _displayRequest;
         DispatcherTimer _dispatcherTimer;
         int _countDown;
@@ -64,7 +66,6 @@ namespace RockPaperScissors
         private async void dispatcherTimer_Tick(object sender, object e)
         {
             _countDown -= 200;
-            textBlock.Text = _countDown.ToString();
             button.Content = Math.Ceiling(_countDown / 1000.0).ToString();
 
             if (_countDown <= -200)
@@ -78,52 +79,65 @@ namespace RockPaperScissors
                 var softwareBitmap = capturedPhoto.Frame.SoftwareBitmap;
                 await lowLagCapture.FinishAsync();
 
-                SoftwareBitmap softwareBitmapBGR8 = SoftwareBitmap.Convert(softwareBitmap,
+                SoftwareBitmap softwareBitmapBGRA8 = SoftwareBitmap.Convert(softwareBitmap,
                             BitmapPixelFormat.Bgra8,
                             BitmapAlphaMode.Premultiplied);
 
-                Mat mat = SoftwareBitmapToMat(softwareBitmapBGR8);
+                Mat mat = SoftwareBitmapToMat(softwareBitmapBGRA8);
+
+                if (_captureBackGround)
+                {
+                    _background = mat.Clone();
+                    _captureBackGround = false;
+                }
 
                 HandDetect detector = new HandDetect(mat);
+                if (_background != null)
+                {
+                    detector.mybackground = _background;
+                }
 
                 CascadeClassifier faceClassifier;
 
                 var haarCascade = new CascadeClassifier("Assets\\filters\\haarcascade_frontalface_alt.xml");
 
                 // detect the hand
-                Vec3i minYCrCb, maxYCrCb;
+                Vec3b minYCrCb, maxYCrCb;
                 
-                Rect? faceRegion = detector.FaceDetect(mat, haarCascade);
-                if (faceRegion.HasValue)
+                Rect faceRegion = detector.FaceDetect(mat, haarCascade);
+
+                Mat mask;
+
+                detector.SkinColorModel(mat, faceRegion, out maxYCrCb, out minYCrCb);
+                mask = detector.HandDetection(mat, faceRegion, maxYCrCb, minYCrCb);
+
+                detector.GetHull();
+                int dfts = detector.GetPalmCenter();
+                int tips = 0;
+                if (dfts > 0)
                 {
-                    Mat mask;
-
-                    detector.SkinColorModel(mat, faceRegion.Value, out maxYCrCb, out minYCrCb);
-                    mask = detector.HandDetection(mat, faceRegion.Value, maxYCrCb, minYCrCb);
-                    int dfts = detector.GetPalmCenter();
-                    if (dfts > 0)
-                    {
-                        int tips = detector.GetFingerTips();
-                    }
-
-                    SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
-                    SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
-                    await bitmapSource.SetBitmapAsync(result);
-                    capture.Source = bitmapSource;
-
-                    mask1.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
-
-                    mask2.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask2.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask2));
-
-                    mask3.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask3.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask3));
-
-                    mask4.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask4.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask4));
+                    tips = detector.GetFingerTips();
                 }
+                    
+                textBlock.Text = detector.Detect(tips, dfts).ToString();
 
+                SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
+                SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
+                await bitmapSource.SetBitmapAsync(result);
+                capture.Source = bitmapSource;
+
+                mask1.Source = new SoftwareBitmapSource();
+                await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
+
+                mask2.Source = new SoftwareBitmapSource();
+                await ((SoftwareBitmapSource)mask2.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask2));
+
+                mask3.Source = new SoftwareBitmapSource();
+                await ((SoftwareBitmapSource)mask3.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask3));
+
+                mask4.Source = new SoftwareBitmapSource();
+                await ((SoftwareBitmapSource)mask4.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask4));
+                
                 button.IsEnabled = true;
                 button.Content = "Play";
 
@@ -206,6 +220,11 @@ namespace RockPaperScissors
             {
                 System.Diagnostics.Debug.WriteLine("MediaCapture initialization failed. {0}", ex.Message);
             }
+        }
+
+        private void background_Click(object sender, RoutedEventArgs e)
+        {
+            _captureBackGround = true;
         }
     }
 }
