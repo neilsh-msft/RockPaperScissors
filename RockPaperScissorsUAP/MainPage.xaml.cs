@@ -28,7 +28,7 @@ using System.Threading.Tasks;
 using Windows.System.Display;
 using Windows.Graphics.Display;
 using Windows.Media.MediaProperties;
-
+using System.Diagnostics;
 using OpenCvSharp;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
@@ -47,10 +47,27 @@ namespace RockPaperScissors
         DisplayRequest _displayRequest;
         DispatcherTimer _dispatcherTimer;
         int _countDown;
+        GameEngine _gameEngine;
+
+        // What was the latest hand gesture we saw?
+        HandResult lastHandResult = HandResult.None;
+
+        // How many times did we see it?
+        int handResultCount = 0;
+
+        // How many time do we need to see it before we recognize it?
+        const int requiredCount = 2;
+
+        int totalGamesPlayed = 0;
+
+        // List of all moves used for eval and training
+        List<HandResult> humanMoves = new List<HandResult>();
+        List<HandResult> computerMoves = new List<HandResult>();
 
         public MainPage()
         {
             this.InitializeComponent();
+            _gameEngine = new GameEngine();
             _dispatcherTimer = new DispatcherTimer();
             _dispatcherTimer.Tick += dispatcherTimer_Tick;
 
@@ -118,29 +135,61 @@ namespace RockPaperScissors
                 {
                     tips = detector.GetFingerTips();
                 }
-                    
-                textBlock.Text = detector.Detect(tips, dfts).ToString();
 
-                SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
-                SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
-                await bitmapSource.SetBitmapAsync(result);
-                capture.Source = bitmapSource;
+                var humanMove = detector.Detect(tips, dfts);
 
-                mask1.Source = new SoftwareBitmapSource();
-                await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
+                Debug.WriteLine(string.Format("{0} : current: {1}, last: {2}", DateTime.Now.ToLocalTime(), humanMove, lastHandResult));
 
-                mask2.Source = new SoftwareBitmapSource();
-                await ((SoftwareBitmapSource)mask2.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask2));
+                if (humanMove != HandResult.None)
+                {
+                    if (humanMove == lastHandResult)
+                    {
+                        handResultCount++;
+                        if (handResultCount == requiredCount)
+                        {
+                            // We've seen the same gesture requiredCount times. Accept it and kick of the eval
+                            tbHuman.Text = humanMove.ToString();
+                            handResultCount = 0;
+                            var computerMove = _gameEngine.ComputerMove(totalGamesPlayed, humanMoves, computerMoves);
+                            tbComputer.Text = computerMove.ToString();
+                            var winOrLose = GameEngine.Compare(humanMove, computerMove);
+                            tbResult.Text = winOrLose == 1 ? "You win" : winOrLose == -1 ? "You lose" : "Draw";
+                            tbGamesPlayed.Text = (++totalGamesPlayed).ToString();
 
-                mask3.Source = new SoftwareBitmapSource();
-                await ((SoftwareBitmapSource)mask3.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask3));
+                            humanMoves.Add(humanMove);
+                            computerMoves.Add(computerMove);
 
-                mask4.Source = new SoftwareBitmapSource();
-                await ((SoftwareBitmapSource)mask4.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask4));
-                
-                button.IsEnabled = true;
-                button.Content = "Play";
+                            Debug.WriteLine(string.Format("--> {0} : {1}", humanMove, computerMove));
+                        }
+                    }
+                    else
+                    {
+                        // Reset the counter. The gestures we've seen so far weren't consistent enough to accept
+                        handResultCount = 0;
+                    }
 
+                    SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
+                    SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
+                    await bitmapSource.SetBitmapAsync(result);
+                    capture.Source = bitmapSource;
+
+                    mask1.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
+
+                    mask2.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask2.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask2));
+
+                    mask3.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask3.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask3));
+
+                    mask4.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask4.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask4));
+
+                    button.IsEnabled = true;
+                    button.Content = "Play";
+                }
+
+                lastHandResult = humanMove;
                 _dispatcherTimer.Start();
             }
         }
