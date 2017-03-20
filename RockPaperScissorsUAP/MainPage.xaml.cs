@@ -73,6 +73,7 @@ namespace RockPaperScissors
 
             // Just always run for now.
             button_Click(null, null);
+
         }
 
         private void MediaCapture_Failed(MediaCapture sender, MediaCaptureFailedEventArgs errorEventArgs)
@@ -150,7 +151,7 @@ namespace RockPaperScissors
                             // We've seen the same gesture requiredCount times. Accept it and kick of the eval
                             tbHuman.Text = humanMove.ToString();
                             handResultCount = 0;
-                            var computerMove = _gameEngine.ComputerMove(totalGamesPlayed, humanMoves, computerMoves);
+                            var computerMove = await _gameEngine.ComputerMove(totalGamesPlayed, humanMoves, computerMoves);
                             tbComputer.Text = computerMove.ToString();
                             var winOrLose = GameEngine.Compare(humanMove, computerMove);
                             tbResult.Text = winOrLose == 1 ? "You win" : winOrLose == -1 ? "You lose" : "Draw";

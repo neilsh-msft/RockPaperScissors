@@ -3,13 +3,57 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Windows.Storage.Streams;
+using Windows.System;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace RockPaperScissors
 {
     class GameEngine
     {
-        public HandResult ComputerMove(int moveNumber, List<HandResult> previousHumanMoves, List<HandResult> previousComputerMoves)
+        async Task<string> LaunchEvalCommand(byte[] buff)
         {
+            var processLauncherOptions = new ProcessLauncherOptions();
+            var standardOutput = new InMemoryRandomAccessStream();
+            var standardInput = new InMemoryRandomAccessStream();
+
+            IBuffer ibuff = buff.AsBuffer();
+            await standardInput.WriteAsync(ibuff);
+
+            processLauncherOptions.StandardOutput = standardOutput;
+            processLauncherOptions.StandardError = null;
+            processLauncherOptions.StandardInput = standardInput.GetInputStreamAt(0);
+
+            standardInput.Dispose();
+
+            var processLauncherResult = await ProcessLauncher.RunToCompletionAsync(@"EvalCS.exe", "", processLauncherOptions);
+            if (processLauncherResult.ExitCode == 0)
+            {
+                using (var outStreamRedirect = standardOutput.GetInputStreamAt(0))
+                {
+                    var size = standardOutput.Size;
+                    using (var dataReader = new DataReader(outStreamRedirect))
+                    {
+                        var bytesLoaded = await dataReader.LoadAsync((uint)size);
+                        var stringRead = dataReader.ReadString(bytesLoaded);
+                        var result = stringRead.Trim();
+                        return result;
+                    }
+                }
+            }
+            else
+            {
+                throw new Exception("Cannot start EvalCS");
+            }
+        }
+
+        public async Task<HandResult> ComputerMove(int moveNumber, List<HandResult> previousHumanMoves, List<HandResult> previousComputerMoves)
+        {
+#if false
+            // Some fake input
+            var buff = new byte[] { (byte)'a', (byte)'b', (byte)'c' };
+            var move = await LaunchEvalCommand(buff);
+#endif
             // For now, always return paper
             return HandResult.Paper;
         }
