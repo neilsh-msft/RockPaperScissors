@@ -43,14 +43,11 @@ namespace RockPaperScissors
     public sealed partial class MainPage : Page
     {
         private MediaCapture _mediaCapture;
-        private bool _greenScreen = false;
         private bool _hsv = false;
         private int _slider = 50;
         private int _slider2 = 50;
-        private bool _isPreviewing;
         private bool _captureBackGround;
         private Mat _background;
-        DisplayRequest _displayRequest;
         DispatcherTimer _dispatcherTimer;
         int _countDown;
         GameEngine _gameEngine;
@@ -110,6 +107,7 @@ namespace RockPaperScissors
                     slider.IsEnabled = true;
                 }
 
+#if false
                 if (_mediaCapture.VideoDeviceController.WhiteBalanceControl.Supported)
                 {
                     var preset = _mediaCapture.VideoDeviceController.WhiteBalanceControl.Preset;
@@ -138,7 +136,7 @@ namespace RockPaperScissors
                         slider2.IsEnabled = true;
                     }
                 }
-                
+#endif
                 var lowLagCapture = await _mediaCapture.PrepareLowLagPhotoCaptureAsync(ImageEncodingProperties.CreateUncompressed(MediaPixelFormat.Bgra8));
 
                 var capturedPhoto = await lowLagCapture.CaptureAsync();
@@ -157,20 +155,15 @@ namespace RockPaperScissors
                     _captureBackGround = false;
                 }
 
-                HandDetect detector = new HandDetect(mat, _hsv, _greenScreen, _background);
-
-//                var haarCascade = new CascadeClassifier("Assets\\filters\\haarcascade_frontalface_alt.xml");
+                HandDetect detector = new HandDetect(mat, _hsv, _background);
+                detector.palmRatio = 1.6 + (1.2 * (_slider2 - 50) / 50);
 
                 // detect the hand
                 Scalar minYCrCb, maxYCrCb;
-
-                //  Rect faceRegion = detector.FaceDetect(mat, haarCascade);
-                Rect faceRegion = new Rect();
-
                 Mat mask;
 
-                detector.SkinColorModel(mat, faceRegion, out maxYCrCb, out minYCrCb);
-                mask = detector.HandDetection(mat, faceRegion, maxYCrCb, minYCrCb);
+                detector.SkinColorModel(mat, out maxYCrCb, out minYCrCb);
+                mask = detector.HandDetection(mat, maxYCrCb, minYCrCb);
 
                 detector.GetHull();
                 int dfts = detector.GetPalmCenter();
@@ -190,8 +183,29 @@ namespace RockPaperScissors
                 await bitmapSource.SetBitmapAsync(result);
                 capture.Source = bitmapSource;
 
-                mask1.Source = new SoftwareBitmapSource();
-                await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
+                if (detector.mask1 != null)
+                {
+                    mask1.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
+                }
+
+                if (detector.mask2 != null)
+                {
+                    mask2.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask2.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask2));
+                }
+
+                if (detector.mask3 != null)
+                {
+                    mask3.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask3.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask3));
+                }
+
+                if (detector.mask4 != null)
+                {
+                    mask4.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask4.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask4));
+                }
 
                 var humanMove = detector.Detect(tips, dfts);
 
@@ -230,18 +244,6 @@ namespace RockPaperScissors
                     await bitmapSource.SetBitmapAsync(result);
                     capture.Source = bitmapSource;
 
-                    mask1.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
-
-                    mask2.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask2.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask2));
-
-                    mask3.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask3.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask3));
-
-                    mask4.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask4.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask4));
-
                     button.IsEnabled = true;
                     button.Content = "Play";
                 }
@@ -279,7 +281,7 @@ namespace RockPaperScissors
 
                 Mat[] channels = { image, image, image, C255 };
                 Cv2.Merge(channels, temp);
-                
+
                 System.Runtime.InteropServices.Marshal.Copy(temp.Data, bytes, 0, bytes.Length);
             }
             result.CopyFromBuffer(bytes.AsBuffer());
@@ -313,9 +315,7 @@ namespace RockPaperScissors
 
                 PreviewControl.Source = _mediaCapture;
                 await _mediaCapture.StartPreviewAsync();
-                _isPreviewing = true;
 
-                //_displayRequest.RequestActive();
                 DisplayInformation.AutoRotationPreferences = DisplayOrientations.Landscape;
 
                 // start timer.  Period = 3 seconds, subtract 1 every seconds, capture at -200ms.
@@ -341,10 +341,6 @@ namespace RockPaperScissors
             _captureBackGround = true;
         }
 
-        private void greenScreen_Toggled(object sender, RoutedEventArgs e)
-        {
-            _greenScreen = greenScreen.IsOn;
-        }
         private void hsvSwitch_Toggled(object sender, RoutedEventArgs e)
         {
             _hsv = hsvSwitch.IsOn;
@@ -356,7 +352,7 @@ namespace RockPaperScissors
         }
         private void slider2_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
-            _slider = (int)slider.Value;
+            _slider2 = (int)slider2.Value;
         }
     }
 }

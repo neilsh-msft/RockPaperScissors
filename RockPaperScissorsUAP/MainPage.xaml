@@ -28,7 +28,7 @@
         <Image x:Name="mask3" HorizontalAlignment="Left" Height="180" Margin="680,270,0,0" VerticalAlignment="Top" Width="200"/>
         <Image x:Name="mask4" HorizontalAlignment="Left" Height="180" Margin="890,270,0,0" VerticalAlignment="Top" Width="200"/>
         <Image x:Name="capture" HorizontalAlignment="Left" Height="400" Margin="394,467,0,0" VerticalAlignment="Top" Width="800" Source="Assets\RockPaperScissors.png"/>
-        <ToggleSwitch x:Name="greenScreen" Header="Green Screen" HorizontalAlignment="Left" Margin="1036,34,0,0" VerticalAlignment="Top" Toggled="greenScreen_Toggled"/>
+<!--        <ToggleSwitch x:Name="greenScreen" Header="Green Screen" HorizontalAlignment="Left" Margin="1036,34,0,0" VerticalAlignment="Top" Toggled="greenScreen_Toggled"/> -->
         <ToggleSwitch x:Name="hsvSwitch" Header="HSV" HorizontalAlignment="Left" Margin="1036,99,0,0" VerticalAlignment="Top" Toggled="hsvSwitch_Toggled"/>
         <TextBlock x:Name="fingerTips" HorizontalAlignment="Left" Margin="40,467,0,0" TextWrapping="Wrap" Text="tips" VerticalAlignment="Top"/>
         <TextBlock x:Name="fingerDfcts" HorizontalAlignment="Left" Margin="40,492,0,0" TextWrapping="Wrap" Text="dfcts" VerticalAlignment="Top"/>
