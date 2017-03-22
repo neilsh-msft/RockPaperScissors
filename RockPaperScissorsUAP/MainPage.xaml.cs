@@ -32,11 +32,18 @@ using Windows.Graphics.Display;
 using Windows.Media.MediaProperties;
 using System.Diagnostics;
 using OpenCvSharp;
+using System.Net.Http;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 
 namespace RockPaperScissors
 {
+    class CloudConfig
+    {
+        public bool DownloadRemoteFile;
+        public string WebAPIUri;
+    }
+
     /// <summary>
     /// An empty page that can be used on its own or navigated to within a Frame.
     /// </summary>
@@ -51,6 +58,7 @@ namespace RockPaperScissors
         DispatcherTimer _dispatcherTimer;
         int _countDown;
         GameEngine _gameEngine;
+        CloudConfig _cloudConfig;
 
         // What was the latest hand gesture we saw?
         HandResult lastHandResult = HandResult.None;
@@ -70,6 +78,36 @@ namespace RockPaperScissors
         public MainPage()
         {
             this.InitializeComponent();
+
+            _cloudConfig = new CloudConfig {
+                // Change this if you want to download the model from the cloud vs. embedded resource:
+                DownloadRemoteFile = false,
+                // Change this if you want to hit the Azure-hosted Web API app vs. localhost:
+                WebAPIUri = "http://localhost:3470/api/model"
+            };
+            var start = Start();
+        }
+
+        private async Task DownloadModel()
+        {
+            byte[] bytes;
+            if (_cloudConfig.DownloadRemoteFile)
+            {
+                var client = new HttpClient();
+                bytes = await client.GetByteArrayAsync(_cloudConfig.WebAPIUri);
+            }
+            else
+            {
+                bytes = File.ReadAllBytes("Assets\\model.rps");
+            }
+            var storageFolder = ApplicationData.Current.LocalFolder;
+            var modelFile = await storageFolder.CreateFileAsync("model.rps", CreationCollisionOption.ReplaceExisting);
+            await FileIO.WriteBufferAsync(modelFile, bytes.AsBuffer());
+        }
+
+        private async Task Start()
+        {
+            await DownloadModel();
             _gameEngine = new GameEngine();
             _dispatcherTimer = new DispatcherTimer();
             _dispatcherTimer.Tick += dispatcherTimer_Tick;
