@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define RUN_CONTINUOUS
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -41,6 +43,10 @@ namespace RockPaperScissors
     public sealed partial class MainPage : Page
     {
         private MediaCapture _mediaCapture;
+        private bool _greenScreen = false;
+        private bool _hsv = false;
+        private int _slider = 50;
+        private int _slider2 = 50;
         private bool _isPreviewing;
         private bool _captureBackGround;
         private Mat _background;
@@ -71,9 +77,10 @@ namespace RockPaperScissors
             _dispatcherTimer = new DispatcherTimer();
             _dispatcherTimer.Tick += dispatcherTimer_Tick;
 
+#if RUN_CONTINUOUS
             // Just always run for now.
             button_Click(null, null);
-
+#endif
         }
 
         private void MediaCapture_Failed(MediaCapture sender, MediaCaptureFailedEventArgs errorEventArgs)
@@ -91,6 +98,47 @@ namespace RockPaperScissors
                 _dispatcherTimer.Stop();
 
                 // Prepare and capture photo
+                if (!_mediaCapture.VideoDeviceController.Exposure.TrySetValue(
+                    _mediaCapture.VideoDeviceController.Exposure.Capabilities.Min +
+                    (_mediaCapture.VideoDeviceController.Exposure.Capabilities.Max -
+                     _mediaCapture.VideoDeviceController.Exposure.Capabilities.Min) * _slider / 100))
+                {
+                    slider.IsEnabled = false;
+                }
+                else
+                {
+                    slider.IsEnabled = true;
+                }
+
+                if (_mediaCapture.VideoDeviceController.WhiteBalanceControl.Supported)
+                {
+                    var preset = _mediaCapture.VideoDeviceController.WhiteBalanceControl.Preset;
+                    if (preset == Windows.Media.Devices.ColorTemperaturePreset.Auto)
+                    {
+                        await _mediaCapture.VideoDeviceController.WhiteBalanceControl.SetPresetAsync(
+                            Windows.Media.Devices.ColorTemperaturePreset.Manual);
+                    }
+
+                    await _mediaCapture.VideoDeviceController.WhiteBalanceControl.SetValueAsync(
+        _mediaCapture.VideoDeviceController.WhiteBalanceControl.Min +
+        (_mediaCapture.VideoDeviceController.WhiteBalanceControl.Max -
+         _mediaCapture.VideoDeviceController.WhiteBalanceControl.Min) * (uint)_slider2 / 100);
+                }
+                else
+                {
+                    if (!_mediaCapture.VideoDeviceController.WhiteBalance.TrySetValue(
+        _mediaCapture.VideoDeviceController.WhiteBalance.Capabilities.Min +
+        (_mediaCapture.VideoDeviceController.WhiteBalance.Capabilities.Max -
+         _mediaCapture.VideoDeviceController.WhiteBalance.Capabilities.Min) * _slider2 / 100))
+                    {
+                        slider2.IsEnabled = false;
+                    }
+                    else
+                    {
+                        slider2.IsEnabled = true;
+                    }
+                }
+                
                 var lowLagCapture = await _mediaCapture.PrepareLowLagPhotoCaptureAsync(ImageEncodingProperties.CreateUncompressed(MediaPixelFormat.Bgra8));
 
                 var capturedPhoto = await lowLagCapture.CaptureAsync();
@@ -109,20 +157,15 @@ namespace RockPaperScissors
                     _captureBackGround = false;
                 }
 
-                HandDetect detector = new HandDetect(mat);
-                if (_background != null)
-                {
-                    detector.mybackground = _background;
-                }
+                HandDetect detector = new HandDetect(mat, _hsv, _greenScreen, _background);
 
-                CascadeClassifier faceClassifier;
-
-                var haarCascade = new CascadeClassifier("Assets\\filters\\haarcascade_frontalface_alt.xml");
+//                var haarCascade = new CascadeClassifier("Assets\\filters\\haarcascade_frontalface_alt.xml");
 
                 // detect the hand
-                Vec3b minYCrCb, maxYCrCb;
-                
-                Rect faceRegion = detector.FaceDetect(mat, haarCascade);
+                Scalar minYCrCb, maxYCrCb;
+
+                //  Rect faceRegion = detector.FaceDetect(mat, haarCascade);
+                Rect faceRegion = new Rect();
 
                 Mat mask;
 
@@ -136,6 +179,19 @@ namespace RockPaperScissors
                 {
                     tips = detector.GetFingerTips();
                 }
+
+                fingerTips.Text = String.Format("Fingertips: {0}", tips);
+                fingerDfcts.Text = String.Format("Defects: {0}", dfts);
+
+                textBlock.Text = detector.Detect(tips, dfts).ToString();
+
+                SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
+                SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
+                await bitmapSource.SetBitmapAsync(result);
+                capture.Source = bitmapSource;
+
+                mask1.Source = new SoftwareBitmapSource();
+                await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
 
                 var humanMove = detector.Detect(tips, dfts);
 
@@ -191,7 +247,9 @@ namespace RockPaperScissors
                 }
 
                 lastHandResult = humanMove;
+#if RUN_CONTINUOUS
                 _dispatcherTimer.Start();
+#endif
             }
         }
 
@@ -245,6 +303,12 @@ namespace RockPaperScissors
                 _mediaCapture = new MediaCapture();
                 await _mediaCapture.InitializeAsync();
 
+                _mediaCapture.VideoDeviceController.WhiteBalance.TrySetAuto(false);
+                _mediaCapture.VideoDeviceController.Exposure.TrySetAuto(false);
+                _mediaCapture.VideoDeviceController.Brightness.TrySetAuto(false);
+                _mediaCapture.VideoDeviceController.Contrast.TrySetAuto(false);
+                _mediaCapture.VideoDeviceController.BacklightCompensation.TrySetAuto(false);
+
                 _mediaCapture.Failed += MediaCapture_Failed;
 
                 PreviewControl.Source = _mediaCapture;
@@ -275,6 +339,24 @@ namespace RockPaperScissors
         private void background_Click(object sender, RoutedEventArgs e)
         {
             _captureBackGround = true;
+        }
+
+        private void greenScreen_Toggled(object sender, RoutedEventArgs e)
+        {
+            _greenScreen = greenScreen.IsOn;
+        }
+        private void hsvSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            _hsv = hsvSwitch.IsOn;
+        }
+
+        private void slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        {
+            _slider = (int)slider.Value;
+        }
+        private void slider2_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        {
+            _slider = (int)slider.Value;
         }
     }
 }
