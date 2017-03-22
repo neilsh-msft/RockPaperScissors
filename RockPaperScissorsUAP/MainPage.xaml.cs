@@ -95,10 +95,10 @@ namespace RockPaperScissors
             }
             else
             {
-                bytes = File.ReadAllBytes("Assets\\model.rps");
+                bytes = File.ReadAllBytes("Assets\\rps.model");
             }
             var storageFolder = ApplicationData.Current.LocalFolder;
-            var modelFile = await storageFolder.CreateFileAsync("model.rps", CreationCollisionOption.ReplaceExisting);
+            var modelFile = await storageFolder.CreateFileAsync("rps.model", CreationCollisionOption.ReplaceExisting);
             await FileIO.WriteBufferAsync(modelFile, bytes.AsBuffer());
         }
 
