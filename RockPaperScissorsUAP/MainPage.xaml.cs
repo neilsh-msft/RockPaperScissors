@@ -176,8 +176,6 @@ namespace RockPaperScissors
                 fingerTips.Text = String.Format("Fingertips: {0}", tips);
                 fingerDfcts.Text = String.Format("Defects: {0}", dfts);
 
-                textBlock.Text = detector.Detect(tips, dfts).ToString();
-
                 SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
                 SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
                 await bitmapSource.SetBitmapAsync(result);
@@ -238,11 +236,6 @@ namespace RockPaperScissors
                         // Reset the counter. The gestures we've seen so far weren't consistent enough to accept
                         handResultCount = 0;
                     }
-
-                    SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
-                    SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
-                    await bitmapSource.SetBitmapAsync(result);
-                    capture.Source = bitmapSource;
 
                     button.IsEnabled = true;
                     button.Content = "Play";
