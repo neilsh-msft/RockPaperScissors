@@ -7,7 +7,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Margin="0,0,-176,-132">
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Height="60"  Width="1280" Margin="50,050,0,0">
             <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Games played:" VerticalAlignment="Top" Width="225" TextAlignment="Left" FontSize="32"/>
@@ -28,6 +28,19 @@
         <Image x:Name="mask3" HorizontalAlignment="Left" Height="180" Margin="680,270,0,0" VerticalAlignment="Top" Width="200"/>
         <Image x:Name="mask4" HorizontalAlignment="Left" Height="180" Margin="890,270,0,0" VerticalAlignment="Top" Width="200"/>
         <Image x:Name="capture" HorizontalAlignment="Left" Height="400" Margin="394,467,0,0" VerticalAlignment="Top" Width="800" Source="Assets\RockPaperScissors.png"/>
-        <!--       <CaptureElement Name="PreviewControl" Stretch="Uniform" Margin="394,467,394,48"/> -->
+<!--        <ToggleSwitch x:Name="greenScreen" Header="Green Screen" HorizontalAlignment="Left" Margin="1036,34,0,0" VerticalAlignment="Top" Toggled="greenScreen_Toggled"/> -->
+        <ToggleSwitch x:Name="hsvSwitch" Header="HSV" HorizontalAlignment="Left" Margin="1036,99,0,0" VerticalAlignment="Top" Toggled="hsvSwitch_Toggled"/>
+        <TextBlock x:Name="fingerTips" HorizontalAlignment="Left" Margin="40,467,0,0" TextWrapping="Wrap" Text="tips" VerticalAlignment="Top"/>
+        <TextBlock x:Name="fingerDfcts" HorizontalAlignment="Left" Margin="40,492,0,0" TextWrapping="Wrap" Text="dfcts" VerticalAlignment="Top"/>
+        <Slider x:Name="slider" HorizontalAlignment="Left" Margin="1103,424,-3,0" VerticalAlignment="Top" Width="100" ValueChanged="slider_ValueChanged" Value="50">
+            <Slider.RenderTransform>
+                <CompositeTransform Rotation="-90"/>
+            </Slider.RenderTransform>
+        </Slider>
+        <Slider x:Name="slider2" HorizontalAlignment="Left" Margin="1103,577.845,-3,0" VerticalAlignment="Top" Width="100"  ValueChanged="slider2_ValueChanged" Value="50" UseLayoutRounding="False" d:LayoutRounding="Auto">
+            <Slider.RenderTransform>
+                <CompositeTransform Rotation="-90"/>
+            </Slider.RenderTransform>
+        </Slider>
     </Grid>
 </Page>
