@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define RUN_CONTINUOUS
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -48,10 +50,11 @@ namespace RockPaperScissors
     public sealed partial class MainPage : Page
     {
         private MediaCapture _mediaCapture;
-        private bool _isPreviewing;
+        private bool _hsv = false;
+        private int _slider = 50;
+        private int _slider2 = 50;
         private bool _captureBackGround;
         private Mat _background;
-        DisplayRequest _displayRequest;
         DispatcherTimer _dispatcherTimer;
         int _countDown;
         GameEngine _gameEngine;
@@ -109,8 +112,10 @@ namespace RockPaperScissors
             _dispatcherTimer = new DispatcherTimer();
             _dispatcherTimer.Tick += dispatcherTimer_Tick;
 
+#if RUN_CONTINUOUS
             // Just always run for now.
             button_Click(null, null);
+#endif
         }
 
         private void MediaCapture_Failed(MediaCapture sender, MediaCaptureFailedEventArgs errorEventArgs)
@@ -128,6 +133,48 @@ namespace RockPaperScissors
                 _dispatcherTimer.Stop();
 
                 // Prepare and capture photo
+                if (!_mediaCapture.VideoDeviceController.Exposure.TrySetValue(
+                    _mediaCapture.VideoDeviceController.Exposure.Capabilities.Min +
+                    (_mediaCapture.VideoDeviceController.Exposure.Capabilities.Max -
+                     _mediaCapture.VideoDeviceController.Exposure.Capabilities.Min) * _slider / 100))
+                {
+                    slider.IsEnabled = false;
+                }
+                else
+                {
+                    slider.IsEnabled = true;
+                }
+
+#if false
+                if (_mediaCapture.VideoDeviceController.WhiteBalanceControl.Supported)
+                {
+                    var preset = _mediaCapture.VideoDeviceController.WhiteBalanceControl.Preset;
+                    if (preset == Windows.Media.Devices.ColorTemperaturePreset.Auto)
+                    {
+                        await _mediaCapture.VideoDeviceController.WhiteBalanceControl.SetPresetAsync(
+                            Windows.Media.Devices.ColorTemperaturePreset.Manual);
+                    }
+
+                    await _mediaCapture.VideoDeviceController.WhiteBalanceControl.SetValueAsync(
+        _mediaCapture.VideoDeviceController.WhiteBalanceControl.Min +
+        (_mediaCapture.VideoDeviceController.WhiteBalanceControl.Max -
+         _mediaCapture.VideoDeviceController.WhiteBalanceControl.Min) * (uint)_slider2 / 100);
+                }
+                else
+                {
+                    if (!_mediaCapture.VideoDeviceController.WhiteBalance.TrySetValue(
+        _mediaCapture.VideoDeviceController.WhiteBalance.Capabilities.Min +
+        (_mediaCapture.VideoDeviceController.WhiteBalance.Capabilities.Max -
+         _mediaCapture.VideoDeviceController.WhiteBalance.Capabilities.Min) * _slider2 / 100))
+                    {
+                        slider2.IsEnabled = false;
+                    }
+                    else
+                    {
+                        slider2.IsEnabled = true;
+                    }
+                }
+#endif
                 var lowLagCapture = await _mediaCapture.PrepareLowLagPhotoCaptureAsync(ImageEncodingProperties.CreateUncompressed(MediaPixelFormat.Bgra8));
 
                 var capturedPhoto = await lowLagCapture.CaptureAsync();
@@ -146,25 +193,15 @@ namespace RockPaperScissors
                     _captureBackGround = false;
                 }
 
-                HandDetect detector = new HandDetect(mat);
-                if (_background != null)
-                {
-                    detector.mybackground = _background;
-                }
-
-                CascadeClassifier faceClassifier;
-
-                var haarCascade = new CascadeClassifier("Assets\\filters\\haarcascade_frontalface_alt.xml");
+                HandDetect detector = new HandDetect(mat, _hsv, _background);
+                detector.palmRatio = 1.6 + (1.2 * (_slider2 - 50) / 50);
 
                 // detect the hand
-                Vec3b minYCrCb, maxYCrCb;
-                
-                Rect faceRegion = detector.FaceDetect(mat, haarCascade);
-
+                Scalar minYCrCb, maxYCrCb;
                 Mat mask;
 
-                detector.SkinColorModel(mat, faceRegion, out maxYCrCb, out minYCrCb);
-                mask = detector.HandDetection(mat, faceRegion, maxYCrCb, minYCrCb);
+                detector.SkinColorModel(mat, out maxYCrCb, out minYCrCb);
+                mask = detector.HandDetection(mat, maxYCrCb, minYCrCb);
 
                 detector.GetHull();
                 int dfts = detector.GetPalmCenter();
@@ -172,6 +209,38 @@ namespace RockPaperScissors
                 if (dfts > 0)
                 {
                     tips = detector.GetFingerTips();
+                }
+
+                fingerTips.Text = String.Format("Fingertips: {0}", tips);
+                fingerDfcts.Text = String.Format("Defects: {0}", dfts);
+
+                SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
+                SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
+                await bitmapSource.SetBitmapAsync(result);
+                capture.Source = bitmapSource;
+
+                if (detector.mask1 != null)
+                {
+                    mask1.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
+                }
+
+                if (detector.mask2 != null)
+                {
+                    mask2.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask2.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask2));
+                }
+
+                if (detector.mask3 != null)
+                {
+                    mask3.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask3.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask3));
+                }
+
+                if (detector.mask4 != null)
+                {
+                    mask4.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)mask4.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask4));
                 }
 
                 var humanMove = detector.Detect(tips, dfts);
@@ -206,29 +275,14 @@ namespace RockPaperScissors
                         handResultCount = 0;
                     }
 
-                    SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
-                    SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
-                    await bitmapSource.SetBitmapAsync(result);
-                    capture.Source = bitmapSource;
-
-                    mask1.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
-
-                    mask2.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask2.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask2));
-
-                    mask3.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask3.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask3));
-
-                    mask4.Source = new SoftwareBitmapSource();
-                    await ((SoftwareBitmapSource)mask4.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask4));
-
                     button.IsEnabled = true;
                     button.Content = "Play";
                 }
 
                 lastHandResult = humanMove;
+#if RUN_CONTINUOUS
                 _dispatcherTimer.Start();
+#endif
             }
         }
 
@@ -258,7 +312,7 @@ namespace RockPaperScissors
 
                 Mat[] channels = { image, image, image, C255 };
                 Cv2.Merge(channels, temp);
-                
+
                 System.Runtime.InteropServices.Marshal.Copy(temp.Data, bytes, 0, bytes.Length);
             }
             result.CopyFromBuffer(bytes.AsBuffer());
@@ -282,13 +336,17 @@ namespace RockPaperScissors
                 _mediaCapture = new MediaCapture();
                 await _mediaCapture.InitializeAsync();
 
+                _mediaCapture.VideoDeviceController.WhiteBalance.TrySetAuto(false);
+                _mediaCapture.VideoDeviceController.Exposure.TrySetAuto(false);
+                _mediaCapture.VideoDeviceController.Brightness.TrySetAuto(false);
+                _mediaCapture.VideoDeviceController.Contrast.TrySetAuto(false);
+                _mediaCapture.VideoDeviceController.BacklightCompensation.TrySetAuto(false);
+
                 _mediaCapture.Failed += MediaCapture_Failed;
 
                 PreviewControl.Source = _mediaCapture;
                 await _mediaCapture.StartPreviewAsync();
-                _isPreviewing = true;
 
-                //_displayRequest.RequestActive();
                 DisplayInformation.AutoRotationPreferences = DisplayOrientations.Landscape;
 
                 // start timer.  Period = 3 seconds, subtract 1 every seconds, capture at -200ms.
@@ -312,6 +370,20 @@ namespace RockPaperScissors
         private void background_Click(object sender, RoutedEventArgs e)
         {
             _captureBackGround = true;
+        }
+
+        private void hsvSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            _hsv = hsvSwitch.IsOn;
+        }
+
+        private void slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        {
+            _slider = (int)slider.Value;
+        }
+        private void slider2_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        {
+            _slider2 = (int)slider2.Value;
         }
     }
 }
