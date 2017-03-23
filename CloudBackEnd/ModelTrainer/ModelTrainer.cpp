@@ -33,6 +33,7 @@ void ModelTrainer::LoadModel()
 {
 	// Load the model definition from a file
 	_model = Function::LoadModel(_modelFile);
+
 	_inputs = _model->Inputs()[0];
 	_labels = _model->Outputs()[0];
 
