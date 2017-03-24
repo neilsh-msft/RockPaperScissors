@@ -12,9 +12,9 @@
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Height="60"  Width="1280" Margin="50,050,0,0">
             <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Games played:" VerticalAlignment="Top" Width="225" TextAlignment="Left" FontSize="32"/>
             <TextBlock x:Name="tbGamesPlayed" HorizontalAlignment="Left" Height="60" Text="0" VerticalAlignment="Top" Width="75" TextAlignment="Left" FontSize="32"/>
-            <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Human:" VerticalAlignment="Top" Width="150" TextAlignment="Left" FontSize="32"/>
+            <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Human:" VerticalAlignment="Top" Width="150" TextAlignment="Right" FontSize="32"/>
             <TextBlock x:Name="tbHuman"       HorizontalAlignment="Left" Height="60" Text="" VerticalAlignment="Top" Width="150" TextAlignment="Left" FontSize="32"/>
-            <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Computer:" VerticalAlignment="Top" Width="150" TextAlignment="Left" FontSize="32"/>
+            <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Computer:" VerticalAlignment="Top" Width="150" TextAlignment="Right" FontSize="32"/>
             <TextBlock x:Name="tbComputer"    HorizontalAlignment="Left" Height="60" Text="" VerticalAlignment="Top" Width="150" TextAlignment="Left" FontSize="32"/>
             <TextBlock x:Name="tbResult"      HorizontalAlignment="Left" Height="60" Text="" VerticalAlignment="Top" Width="250" TextAlignment="Left" FontSize="32"/>
         </StackPanel>
