@@ -88,7 +88,7 @@ namespace RockPaperScissors
             var start = Start();
         }
 
-        private async Task DownloadModel()
+        private async Task<string> DownloadModel()
         {
             byte[] bytes;
             if (_cloudConfig.DownloadRemoteFile)
@@ -103,12 +103,13 @@ namespace RockPaperScissors
             var storageFolder = ApplicationData.Current.LocalFolder;
             var modelFile = await storageFolder.CreateFileAsync("rps.model", CreationCollisionOption.ReplaceExisting);
             await FileIO.WriteBufferAsync(modelFile, bytes.AsBuffer());
+            return modelFile.Path;
         }
 
         private async Task Start()
         {
-            await DownloadModel();
-            _gameEngine = new GameEngine();
+            var modelFilePath = await DownloadModel();
+            _gameEngine = new GameEngine(modelFilePath);
             _dispatcherTimer = new DispatcherTimer();
             _dispatcherTimer.Tick += dispatcherTimer_Tick;
 
