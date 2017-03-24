@@ -30,7 +30,59 @@ namespace EvalCS
             return allbytes.ToArray();
         }
 
-        static string ProcessData(List<float> inputValues, string modelFile)
+        static readonly Dictionary<string, float[]> unpack = new Dictionary<string, float[]>
+        {
+            ["R"] = new float[] { 1, 0, 0 },
+            ["P"] = new float[] { 0, 1, 0 },
+            ["S"] = new float[] { 0, 0, 1 }
+        };
+
+        static readonly Dictionary<string, int> winLossStates = new Dictionary<string, int>
+        {
+            ["RR"] = 0,
+            ["RP"] = 1,
+            ["RS"] = -1,
+            ["PR"] = -1,
+            ["PP"] = 0,
+            ["PS"] = 1,
+            ["SR"] = 1,
+            ["SP"] = -1,
+            ["SS"] = 0
+        };
+
+        static IEnumerable<float> PrepareEvalData(string input)
+        {
+            IEnumerable<string> stringArray = input.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Take(10);
+            var initialSize = stringArray.Count();
+
+            while (stringArray.Any())
+            {
+                var movePair = stringArray.Take(2);
+                var humanMove = movePair.First();
+                var computerMove = movePair.Skip(1).First();
+
+                foreach (float m in unpack[humanMove])
+                    yield return m;
+                foreach (float m in unpack[computerMove])
+                    yield return m;
+
+                int winLoss = winLossStates[humanMove + computerMove];
+                if (winLoss == 0) winLoss = 1;
+                if (winLoss == -1) winLoss = 0;
+                yield return winLoss;
+
+                stringArray = stringArray.Skip(2);
+            }
+
+            // Padding:
+            for (int i = 0; i < 5 - initialSize/2; ++i)
+            {
+                for (int j = 0; j < 6; ++j) yield return 0;
+                yield return 1;
+            }
+        }
+
+        static string InvokeEval(List<float> inputValues, string modelFile)
         {
             // Load the already trained model
             var model = Function.LoadModel(modelFile);
@@ -48,30 +100,19 @@ namespace EvalCS
             var outputs = new Dictionary<Variable, Value>();
             outputs.Add(model.Output, null);
 
-            try
-            {
-                model.Evaluate(inputs, outputs, DeviceDescriptor.DefaultDevice());
+            model.Evaluate(inputs, outputs, DeviceDescriptor.DefaultDevice());
 
-                // Get evaluate result as dense output
-                var outputBuffer = new List<List<float>>();
-                var outputVal = outputs[model.Output];
-                outputVal.CopyVariableValueTo(model.Output, outputBuffer);
+            // Get evaluate result as dense output
+            var outputBuffer = new List<List<float>>();
+            var outputVal = outputs[model.Output];
+            outputVal.CopyVariableValueTo(model.Output, outputBuffer);
 
-                var probabilities = outputBuffer[0];
-                int indexOfMax = probabilities.IndexOf(probabilities.Max());
+            var probabilities = outputBuffer[0];
+            int indexOfMax = probabilities.IndexOf(probabilities.Max());
 
-                var nextPredictedHumanMove = new[] { "R", "P", "S" }[indexOfMax];
+            var computerMove = new[] { "R", "P", "S" }[indexOfMax];
 
-                var computerMove = nextPredictedHumanMove == "R" ? "P" : nextPredictedHumanMove == "P" ? "S" : "R";
-
-                return computerMove;
-
-            }
-            catch (Exception)
-            {
-                // TODO: handle error
-                return "P";
-            }
+            return computerMove;
         }
 
         const int bufferSize = 1024;
@@ -80,7 +121,7 @@ namespace EvalCS
             if(args.Length != 1)
             {
                 Console.WriteLine("Need parameter: path to model file");
-                return -1;
+                return 1;
             }
 
             var modelFile = args[0];
@@ -88,56 +129,30 @@ namespace EvalCS
             if (!File.Exists(modelFile))
             {
                 Console.WriteLine("Model file {0} not found", modelFile);
-                return -1;
+                return 1;
             }
 
-#if true // real input
+#if true// real input
             var input = Encoding.Default.GetString(GetInputBytes()).Trim();
 #else // useful for debugging
-            var input = "R P R S R P S R S R";
+            //var input = "R R R R R R R R R R";
+            //var input = "S S S S S S S S S S";
+            //var input = "P P P P P P P P P P";
+            var input = "";
 #endif
-
-            var stringArray = input.Split(' ');
-
-            var humanMoves = stringArray.Where((m, i) => i % 2 == 0);
-            var computerMoves = stringArray.Where((m, i) => i % 2 == 1);
-
-            Func<string, float[]> unpack = (string s) =>
+            try
             {
-                switch (s)
-                {
-                    case "R": return new float[] { 1, 0, 0 };
-                    case "P": return new float[] { 0, 1, 0 };
-                    case "S": return new float[] { 0, 0, 1 };
-                    default:
-                        Console.WriteLine("'{0}' unknown", s);
-                        throw new NotSupportedException();
-                }
-            };
-
-            Func<string, string, int> WinOrLoss = (string move1, string move2) =>
+                var evalData = PrepareEvalData(input).ToList();
+                System.Diagnostics.Debug.Assert(evalData.Count() == 35);
+                var output = InvokeEval(evalData, modelFile);
+                Console.Write(output);
+                return 0;
+            }
+            catch(Exception ex)
             {
-                if (move1 == move2) return 1; // draw is considered 'win'
-                if (move1 == "R") return move2 == "P" ? 0 : 1;
-                if (move1 == "P") return move2 == "R" ? 1 : 0;
-                System.Diagnostics.Debug.Assert(move1 == "S");
-                return move2 == "P" ? 1 : 0;
-            };
-
-            var movesWithWinLoss = Enumerable.Zip(humanMoves, computerMoves, (h, m) =>
-            {
-                var list = Enumerable.Concat(unpack(h), unpack(m)).ToList();
-                list.Add(WinOrLoss(h, m));
-                return list;
-            }).SelectMany(_ => _);
-
-
-            // Produce output
-            var output = ProcessData(movesWithWinLoss.ToList(), modelFile);
-
-            Console.Write(output);
-
-            return 0;
+                Console.Write(ex.Message);
+                return 1;
+            }
         }
     }
 }
