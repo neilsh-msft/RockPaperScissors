@@ -14,7 +14,7 @@ using namespace CNTK;
 int main()
 {
 	// These are the two arguments that need to be passed on the command line
-	wstring modelFilePath = L"C:\\Temp\\Brie\\Python\\rps.model";
+	wstring modelFilePath = L"C:\\Temp\\RPS\\rps.model";
 	wstring dataFilePath = L"C:\\Temp\\RPS\\rps.csv";
 
 	ModelTrainer *trainer = new ModelTrainer(modelFilePath, dataFilePath);
@@ -34,12 +34,12 @@ void ModelTrainer::LoadModel()
 	// Load the model definition from a file
 	_model = Function::LoadModel(_modelFile);
 
-	_inputs = _model->Inputs()[0];
+	_inputs = _model->Arguments()[0];
 	_labels = _model->Outputs()[0];
 
 	// We could create the model from scratch, but its schema is already defined by the model file...
-	// auto inputs = InputVariable({ 7 * LOOKBACK_MOVES }, CNTK::DataType::Float, L"Feature Vector");
-	// auto labels = InputVariable({ 3 }, CNTK::DataType::Float, L"Labels");
+	// _inputs = InputVariable({ 7 * LOOKBACK_MOVES }, CNTK::DataType::Float, L"Feature Vector");
+	// _labels = InputVariable({ 3 }, CNTK::DataType::Float, L"Labels");
 	// ...
 }
 
@@ -84,8 +84,9 @@ void ModelTrainer::Train()
 			previousMove.resize(LOOKBACK_MOVES * 7);
 		}
 
-		ValuePtr inputValues = MakeSharedObject<Value>(MakeSharedObject<NDArrayView>(_inputs.Shape(), inputData.data(), inputData.size(), DeviceDescriptor::DefaultDevice(), true));
-		ValuePtr labelValues = MakeSharedObject<Value>(MakeSharedObject<NDArrayView>(_labels.Shape(), labelData.data(), labelData.size(), DeviceDescriptor::DefaultDevice(), true));
+		// This is a simpler way to do value creation
+		ValuePtr inputValues = Value::Create<float>(_inputs.Shape(), inputData, DeviceDescriptor::DefaultDevice(), true);
+		ValuePtr labelValues = Value::Create<float>(_labels.Shape(), labelData, DeviceDescriptor::DefaultDevice(), true);
 
 		std::unordered_map<Variable, ValuePtr> arguments = { { _inputs, inputValues },{ _labels, labelValues } };
 		trainer->TrainMinibatch(arguments, DeviceDescriptor::DefaultDevice());
