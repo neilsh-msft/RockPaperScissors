@@ -25,7 +25,7 @@ def humanMove():
 
 def computerMove(strategy, moveNumber, previousHM, previousCM):
   if strategy == 0: return randomMove()
-  elif strategy == 1: return titForTat(moveNumber, previousHM)
+  # elif strategy == 1: return titForTat(moveNumber, previousHM)
   else: return winStayLoseShift(moveNumber, previousHM, previousCM)
 
 def randomMove():
@@ -49,9 +49,9 @@ def selectWinner(human, computer):
 moveNumber = 0
 previousHumanMove = ""
 previousComputerMove = ""
-strategy = random.randint(0, 2)
+strategy = random.randint(0, 1)
 with open(os.path.join(script_directory, "rps.csv"), 'a') as csvfile:
-  recordWriter = csv.writer(csvfile)
+  recordWriter = csv.writer(csvfile, lineterminator='\n')
   while moveNumber < 20:
     hm = humanMove()
     cm = computerMove(strategy, moveNumber, previousHumanMove, previousComputerMove)
