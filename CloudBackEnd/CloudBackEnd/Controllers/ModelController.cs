@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using System.IO;
 using System.Runtime.InteropServices;
+using Newtonsoft.Json;
 
 namespace CloudBackEnd.Controllers
 {
@@ -38,6 +39,38 @@ namespace CloudBackEnd.Controllers
                 return Task.FromResult(response);
             }
         }
+
+        private string FileStat(string fileName)
+        {
+            if(File.Exists(fileName))
+            {
+                return new FileInfo(fileName).Length.ToString();
+            }
+            else
+            {
+                return "File does not exist";
+            }
+        }
+
+        [Route("stat")]
+        public Task<HttpResponseMessage> GetDataSize()
+        {
+            string modelFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory + "CNTK\\Models\\rps.model");
+            string gameFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory + "AllGames.csv");
+
+            var obj = new[]
+            {
+                new { name = modelFilePath, size = FileStat(modelFilePath) },
+                new { name = gameFilePath, size = FileStat(gameFilePath) }
+            };
+
+            var resp = JsonConvert.SerializeObject(obj);
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK);
+            response.Content = new StringContent(resp, System.Text.Encoding.UTF8, "application/json");
+
+            return Task.FromResult(response);
+        }
     }
 
     [RoutePrefix("api/training")]
@@ -47,6 +80,29 @@ namespace CloudBackEnd.Controllers
         static extern int TrainModel([MarshalAs(UnmanagedType.LPWStr)]String modelFileName, [MarshalAs(UnmanagedType.LPWStr)]String gameFileName);
 
         readonly string accumulatedGameHistoryFileName = "AllGames.csv";
+
+        [Route("reset")]
+        [HttpGet] // Destructive GET is a bad idea, but I want to be able to do it from the browser!
+        public Task<HttpResponseMessage> ResetData()
+        {
+            string modelFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory + "CNTK\\Models\\rps.model");
+            string gameFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory + "AllGames.csv");
+
+            if (File.Exists(modelFilePath))
+            {
+                File.Delete(modelFilePath);
+            }
+
+            if (File.Exists(gameFilePath))
+            {
+                File.Delete(gameFilePath);
+            }
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK);
+            response.Content = new StringContent("All files deleted", System.Text.Encoding.UTF8, "text/plain");
+
+            return Task.FromResult(response);
+        }
 
         [Route("game")]
         [HttpPost]
@@ -67,14 +123,14 @@ namespace CloudBackEnd.Controllers
 
                     string fileName = fileData.Headers.ContentDisposition.FileName;
 
-                    string modelFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CNTK\\Models\\rps.model");
+                    string modelFilePath = Path.Combine(serverUploadFolder, "CNTK\\Models\\rps.model");
                     string gameFilePath = fileData.LocalFileName;
 
                     Debug.WriteLine(string.Format("Starting training. Model file: '{0}', Game file: '{1}'", modelFilePath, gameFilePath));
 
                     // Do we have the accumulatedGameHistoryFileName file? If not, create it from the received file
                     // If yet, concat the received file to it
-                    var accumulatedGameHistoryFileNameFullPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, accumulatedGameHistoryFileName);
+                    var accumulatedGameHistoryFileNameFullPath = Path.Combine(serverUploadFolder, accumulatedGameHistoryFileName);
                     if(!File.Exists(accumulatedGameHistoryFileNameFullPath))
                     {
                         File.Copy(fileData.LocalFileName, accumulatedGameHistoryFileNameFullPath);
