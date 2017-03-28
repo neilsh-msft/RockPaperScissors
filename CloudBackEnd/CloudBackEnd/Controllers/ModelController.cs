@@ -46,6 +46,8 @@ namespace CloudBackEnd.Controllers
         [DllImport("ModelTrainerLib.dll")]
         static extern int TrainModel([MarshalAs(UnmanagedType.LPWStr)]String modelFileName, [MarshalAs(UnmanagedType.LPWStr)]String gameFileName);
 
+        readonly string accumulatedGameHistoryFileName = "AllGames.csv";
+
         [Route("game")]
         [HttpPost]
         public async Task<HttpResponseMessage> UploadGameFile()
@@ -70,11 +72,24 @@ namespace CloudBackEnd.Controllers
 
                     Debug.WriteLine(string.Format("Starting training. Model file: '{0}', Game file: '{1}'", modelFilePath, gameFilePath));
 
+                    // Do we have the accumulatedGameHistoryFileName file? If not, create it from the received file
+                    // If yet, concat the received file to it
+                    var accumulatedGameHistoryFileNameFullPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, accumulatedGameHistoryFileName);
+                    if(!File.Exists(accumulatedGameHistoryFileNameFullPath))
+                    {
+                        File.Copy(fileData.LocalFileName, accumulatedGameHistoryFileNameFullPath);
+                    }
+                    else
+                    {
+                        var lines = File.ReadAllLines(fileData.LocalFileName);
+                        File.AppendAllLines(accumulatedGameHistoryFileNameFullPath, lines);
+                    }
+
                     int trainingResult;
 
                     lock (ModelFileLock.obj)
                     {
-                        trainingResult = TrainModel(modelFilePath, fileData.LocalFileName);
+                        trainingResult = TrainModel(modelFilePath, accumulatedGameHistoryFileNameFullPath);
                         Debug.WriteLine(string.Format("Trainer reports error code={0}", trainingResult));
                     }
 
