@@ -4,37 +4,48 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
-using Swashbuckle.Swagger.Annotations;
 
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.IO;
-using System.Drawing;
-
+using System.Runtime.InteropServices;
 
 namespace CloudBackEnd.Controllers
 {
+    static class ModelFileLock
+    {
+        // Model file is locked while it is written to or read from
+        public static object obj = new object();
+    }
+
     [RoutePrefix("api/model")]
     public class ModelController : ApiController
     {
         [Route("latest")]
-        public async Task<HttpResponseMessage> GetLatestModel()
+        public Task<HttpResponseMessage> GetLatestModel()
         {
             string modelFilePath = AppDomain.CurrentDomain.BaseDirectory + "CNTK\\Models\\rps.model";
 
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            lock (ModelFileLock.obj)
             {
-                Content = new StreamContent(File.OpenRead(modelFilePath))
-            };
+                var response = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StreamContent(File.OpenRead(modelFilePath))
+                };
 
-            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/binary");
+                response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/binary");
 
-            return await Task.FromResult(response);
+                return Task.FromResult(response);
+            }
         }
     }
 
     [RoutePrefix("api/training")]
     public class GameUploadController : ApiController
     {
+        [DllImport("ModelTrainerLib.dll")]
+        static extern int TrainModel([MarshalAs(UnmanagedType.LPWStr)]String modelFileName, [MarshalAs(UnmanagedType.LPWStr)]String gameFileName);
+
         [Route("game")]
         [HttpPost]
         public async Task<HttpResponseMessage> UploadGameFile()
@@ -54,16 +65,30 @@ namespace CloudBackEnd.Controllers
 
                     string fileName = fileData.Headers.ContentDisposition.FileName;
 
-                    // If the file already exists, delete it
-                    // TODO: race conditions if the file is used in training
-                    var copyToName = Path.Combine(serverUploadFolder, fileName);
-                    if (File.Exists(copyToName))
-                    {
-                        File.Delete(copyToName);
-                    }
-                    File.Move(fileData.LocalFileName, copyToName);
+                    string modelFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CNTK\\Models\\rps.model");
+                    string gameFilePath = fileData.LocalFileName;
 
-                    // TODO: kick off training
+                    Debug.WriteLine(string.Format("Starting training. Model file: '{0}', Game file: '{1}'", modelFilePath, gameFilePath));
+
+                    int trainingResult;
+
+                    lock (ModelFileLock.obj)
+                    {
+                        trainingResult = TrainModel(modelFilePath, fileData.LocalFileName);
+                        Debug.WriteLine(string.Format("Trainer reports error code={0}", trainingResult));
+                    }
+
+                    // Delete the downloaded game file
+                    if (File.Exists(gameFilePath))
+                    {
+                        File.Delete(gameFilePath);
+                    }
+
+                    if (trainingResult != 0)
+                    {
+                        return Request.CreateResponse(HttpStatusCode.InternalServerError);
+                    }
+
                 }
 
                 return Request.CreateResponse(HttpStatusCode.OK);

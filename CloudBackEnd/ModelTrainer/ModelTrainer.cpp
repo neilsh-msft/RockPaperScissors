@@ -4,24 +4,67 @@
 #include "stdafx.h"
 #include "ModelTrainer.h"
 #include "TrainingData.h"
-#include <string>
-#include <functional>
-#include <iostream>
 
 using namespace std;
 using namespace CntkTraining;
 using namespace CNTK;
 
-int main()
+#ifndef MODELTRAINERLIB
+
+int TrainModel(const wchar_t* modelFilePath, const wchar_t* dataFilePath);
+
+int wmain(int argc, wchar_t**argv)
 {
-	// These are the two arguments that need to be passed on the command line
-	wstring modelFilePath = L"C:\\Temp\\RPS\\rps.model";
-	wstring dataFilePath = L"C:\\Temp\\RPS\\rps.csv";
+	if (argc != 3)
+	{
+		cout << "Syntax: ModelTrainer.exe <modelfile.model> <gamefile.csv>\n";
+		return 1;
+	}
 
-	ModelTrainer *trainer = new ModelTrainer(modelFilePath, dataFilePath);
-	trainer->Train();
+	const wchar_t* modelFilePath = argv[1];
+	const wchar_t* dataFilePath = argv[2];
 
-	delete(trainer);
+	return TrainModel(modelFilePath, dataFilePath);
+}
+#endif
+
+inline bool DoesFileExist(const wchar_t* fileName) {
+	ifstream f(fileName);
+	return f.good();
+}
+
+#ifdef MODELTRAINERLIB
+extern "C" __declspec(dllexport) 
+#endif
+int TrainModel(const wchar_t* modelFilePath, const wchar_t* dataFilePath)
+{
+#ifdef MODELTRAINERLIB
+	OutputDebugString(L"Invoked TrainModel");
+#endif
+
+	try
+	{
+		if (!DoesFileExist(modelFilePath))
+			return 10;
+
+		if (!DoesFileExist(dataFilePath))
+			return 11;
+
+		if (!DoesFileExist(modelFilePath) || !DoesFileExist(dataFilePath))
+		{
+			cout << "Cannot find one of the input files. Both must exist";
+			return 1;
+		}
+
+		ModelTrainer *trainer = new ModelTrainer(modelFilePath, dataFilePath);
+		trainer->Train();
+		delete(trainer);
+		return 0;
+	}
+	catch (...)
+	{
+		return -1;
+	}
 }
 
 ModelTrainer::ModelTrainer(const wstring& modelFile, const wstring& dataFile)
@@ -198,4 +241,5 @@ void ModelTrainer::Train()
 	}
 
 	trainer->Model()->SaveModel(_modelFile);
+	wcout << L"New model saved to " << _modelFile;
 }
