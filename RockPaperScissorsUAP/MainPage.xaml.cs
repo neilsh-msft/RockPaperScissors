@@ -334,7 +334,7 @@ namespace RockPaperScissors
                                 var computerMovesCopy = new HandResult[humanMoves.Count()];
                                 humanMoves.CopyTo(computerMovesCopy);
 
-                                var submission = this.SubmitLatestGameToCloud(humanMoves, computerMoves);
+                                var submission = this.SubmitLatestGameToCloud(computerMovesCopy, computerMovesCopy);
 
                                 // Do not await submission, let it proceed asynchronously but clear the history
                                 humanMoves.Clear();
