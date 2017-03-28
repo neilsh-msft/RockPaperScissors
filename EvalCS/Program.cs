@@ -110,7 +110,11 @@ namespace EvalCS
             var probabilities = outputBuffer[0];
             int indexOfMax = probabilities.IndexOf(probabilities.Max());
 
-            var computerMove = new[] { "R", "P", "S" }[indexOfMax];
+            var humanMove = new[] { "R", "P", "S" }[indexOfMax];
+
+            var computerMove = humanMove == "R" ? "P" : 
+                               humanMove == "P" ? "S" : 
+                                                  "R";
 
             return computerMove;
         }
@@ -138,7 +142,7 @@ namespace EvalCS
             //var input = "R R R R R R R R R R";
             //var input = "S S S S S S S S S S";
             //var input = "P P P P P P P P P P";
-            var input = "";
+            //var input = "";
 #endif
             try
             {
