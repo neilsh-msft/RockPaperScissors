@@ -50,14 +50,16 @@ namespace TestClient
                 string command = args[0];
                 if (command == "download")
                 {
-                    var webAPIUri = "http://localhost:3470/api/model/latest";
+                    //var webAPIUri = "http://localhost:3470/api/model/latest";
+                    var webAPIUri = "http://fetaeval.azurewebsites.net/api/model/latest";
                     var saveModelToFile = "dowloaded.model";
                     var task = TestModelDownload(webAPIUri, saveModelToFile);
                     task.Wait();
                 }
                 else if (command == "train")
                 {
-                    var webAPIUri = "http://localhost:3470/api/training/game";
+                    //var webAPIUri = "http://localhost:3470/api/training/game";
+                    var webAPIUri = "http://fetaeval.azurewebsites.net/api/training/game";
                     var gameFile = "D:\\g\\brie\\rps.csv";
                     var task = TestTraining(webAPIUri, gameFile);
                     task.Wait();
