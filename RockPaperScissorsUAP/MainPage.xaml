@@ -20,7 +20,6 @@
         </StackPanel>
 
         <Button x:Name="button" Content="Play" HorizontalAlignment="Left" Height="60" Margin="311,150,0,0" VerticalAlignment="Top" Width="219" FontSize="32" Click="button_Click"/>
-        <Button x:Name="background" Content="BackGround" HorizontalAlignment="Left" Height="60" Margin="50,150,0,0" VerticalAlignment="Top" Width="219" FontSize="32" Click="background_Click"/>
         <CaptureElement Name="PreviewControl" Stretch="Uniform" Margin="50,270,0,0" Width="200" Height="180" HorizontalAlignment="Left" VerticalAlignment="Top" />
         <!--       <Image x:Name="capture" HorizontalAlignment="Left" Height="180" Margin="40,278,0,0" VerticalAlignment="Top" Width="200" Source="Assets\RockPaperScissors.png"/>-->
         <Image x:Name="mask1" HorizontalAlignment="Left" Height="180" Margin="260,270,0,0" VerticalAlignment="Top" Width="200"/>
@@ -29,7 +28,6 @@
         <Image x:Name="mask4" HorizontalAlignment="Left" Height="180" Margin="890,270,0,0" VerticalAlignment="Top" Width="200"/>
         <Image x:Name="capture" HorizontalAlignment="Left" Height="400" Margin="394,467,0,0" VerticalAlignment="Top" Width="800" Source="Assets\RockPaperScissors.png"/>
 <!--        <ToggleSwitch x:Name="greenScreen" Header="Green Screen" HorizontalAlignment="Left" Margin="1036,34,0,0" VerticalAlignment="Top" Toggled="greenScreen_Toggled"/> -->
-        <ToggleSwitch x:Name="hsvSwitch" Header="HSV" HorizontalAlignment="Left" Margin="1036,99,0,0" VerticalAlignment="Top" Toggled="hsvSwitch_Toggled"/>
         <TextBlock x:Name="fingerTips" HorizontalAlignment="Left" Margin="40,467,0,0" TextWrapping="Wrap" Text="tips" VerticalAlignment="Top"/>
         <TextBlock x:Name="fingerDfcts" HorizontalAlignment="Left" Margin="40,492,0,0" TextWrapping="Wrap" Text="dfcts" VerticalAlignment="Top"/>
         <Slider x:Name="slider" HorizontalAlignment="Left" Margin="1103,424,-3,0" VerticalAlignment="Top" Width="100" ValueChanged="slider_ValueChanged" Value="50">

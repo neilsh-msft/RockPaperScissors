@@ -71,7 +71,7 @@ namespace RockPaperScissors
         Point[] palm = null;
         Vec4i[] defects = null;
 
-        bool hsv;
+        bool hsv = false;
 
         RotatedRect arm;
         Point armCenter;
@@ -87,15 +87,11 @@ namespace RockPaperScissors
         public Mat mask2;
         public Mat mask3;
         public Mat mask4;
-        public Mat background = null;
 
         public double palmRatio = 1.6;
 
-        public HandDetect(Mat frame, bool hsv, Mat background)
+        public HandDetect(Mat frame)
         {
-            this.hsv = hsv;
-            this.background = background;
-
             myframe = frame.Clone();
 
             palmClr = cyan;
@@ -149,26 +145,6 @@ namespace RockPaperScissors
             Mat mask = Mat.Zeros(frame.Size(), MatType.CV_8UC1);
 
             Cv2.InRange(lumMap, minYCrCb, maxYCrCb, mask);
-
-            // subtract known background elements if we have them.
-            if (background != null)
-            {
-                Mat b = background;
-                int i, j;
-                
-                for (i = 0; i < frame.Cols; i++)
-                {
-                    for (j = 0; j < frame.Rows; j++)
-                    {
-                        if (Math.Abs((int)frame.At<Vec3b>(j, i)[0] - (int)b.At<Vec3b>(j, i)[0]) < 10 &&
-                            Math.Abs((int)frame.At<Vec3b>(j, i)[1] - (int)b.At<Vec3b>(j, i)[1]) < 10 &&
-                            Math.Abs((int)frame.At<Vec3b>(j, i)[2] - (int)b.At<Vec3b>(j, i)[2]) < 10)
-                        {
-                            mask.Set<byte>(j, i, 0);
-                        }
-                    }
-                }
-            }
 
 #if false
             // Get rid of single pixel noise from the mask

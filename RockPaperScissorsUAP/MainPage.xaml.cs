@@ -50,11 +50,8 @@ namespace RockPaperScissors
     public sealed partial class MainPage : Page
     {
         private MediaCapture _mediaCapture;
-        private bool _hsv = false;
         private int _slider = 50;
         private int _slider2 = 50;
-        private bool _captureBackGround;
-        private Mat _background;
         DispatcherTimer _dispatcherTimer;
         int _countDown;
         GameEngine _gameEngine;
@@ -188,13 +185,7 @@ namespace RockPaperScissors
 
                 Mat mat = SoftwareBitmapToMat(softwareBitmapBGRA8);
 
-                if (_captureBackGround)
-                {
-                    _background = mat.Clone();
-                    _captureBackGround = false;
-                }
-
-                HandDetect detector = new HandDetect(mat, _hsv, _background);
+                HandDetect detector = new HandDetect(mat);
                 detector.palmRatio = 1.6 + (1.2 * (_slider2 - 50) / 50);
 
                 // detect the hand
@@ -366,16 +357,6 @@ namespace RockPaperScissors
             {
                 System.Diagnostics.Debug.WriteLine("MediaCapture initialization failed. {0}", ex.Message);
             }
-        }
-
-        private void background_Click(object sender, RoutedEventArgs e)
-        {
-            _captureBackGround = true;
-        }
-
-        private void hsvSwitch_Toggled(object sender, RoutedEventArgs e)
-        {
-            _hsv = hsvSwitch.IsOn;
         }
 
         private void slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
