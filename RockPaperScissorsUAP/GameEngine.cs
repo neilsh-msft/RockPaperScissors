@@ -63,14 +63,14 @@ namespace RockPaperScissors
             }
         }
 
-        static readonly Dictionary<HandResult, string> HandResultToString = new Dictionary<HandResult, string>
+        public static readonly Dictionary<HandResult, string> HandResultToString = new Dictionary<HandResult, string>
         {
             [HandResult.Rock]     = "R",
             [HandResult.Paper]    = "P",
             [HandResult.Scissors] = "S",
         };
 
-        static readonly Dictionary<string, HandResult> StringToHandResult= new Dictionary<string, HandResult>
+        public static readonly Dictionary<string, HandResult> StringToHandResult= new Dictionary<string, HandResult>
         {
             ["R"] = HandResult.Rock,
             ["P"] = HandResult.Paper,

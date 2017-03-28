@@ -33,6 +33,7 @@ using Windows.Media.MediaProperties;
 using System.Diagnostics;
 using OpenCvSharp;
 using System.Net.Http;
+using System.Text;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 
@@ -41,7 +42,9 @@ namespace RockPaperScissors
     class CloudConfig
     {
         public bool DownloadRemoteFile;
-        public string WebAPIUri;
+        public string WebAPIDownloadUri;
+        public bool EnableCloudTraining;
+        public string WebAPITrainUri;
     }
 
     /// <summary>
@@ -79,11 +82,24 @@ namespace RockPaperScissors
         {
             this.InitializeComponent();
 
-            _cloudConfig = new CloudConfig {
+            humanMoves.Add(HandResult.Rock);
+            humanMoves.Add(HandResult.Rock);
+            humanMoves.Add(HandResult.Rock);
+
+            computerMoves.Add(HandResult.Paper);
+            computerMoves.Add(HandResult.Paper);
+            computerMoves.Add(HandResult.Paper);
+
+            _cloudConfig = new CloudConfig
+            {
                 // Change this if you want to download the model from the cloud vs. embedded resource:
-                DownloadRemoteFile = false,
+                DownloadRemoteFile = true,
                 // Change this if you want to hit the Azure-hosted Web API app vs. localhost:
-                WebAPIUri = "http://localhost:3470/api/model"
+                WebAPIDownloadUri = "http://fetaeval.azurewebsites.net/api/model/latest",
+                // Submit game data to the cloud for training:
+                EnableCloudTraining = true,
+                // Training intergace Uri:
+                WebAPITrainUri = "http://fetaeval.azurewebsites.net/api/training/game"
             };
 
             HandResultToImage[HandResult.Paper] = new BitmapImage(new Uri("ms-appx:///Assets/Paper.png"));
@@ -99,7 +115,7 @@ namespace RockPaperScissors
             if (_cloudConfig.DownloadRemoteFile)
             {
                 var client = new HttpClient();
-                bytes = await client.GetByteArrayAsync(_cloudConfig.WebAPIUri);
+                bytes = await client.GetByteArrayAsync(_cloudConfig.WebAPIDownloadUri);
             }
             else
             {
@@ -109,6 +125,42 @@ namespace RockPaperScissors
             var modelFile = await storageFolder.CreateFileAsync("rps.model", CreationCollisionOption.ReplaceExisting);
             await FileIO.WriteBufferAsync(modelFile, bytes.AsBuffer());
             return modelFile.Path;
+        }
+
+        private async Task SubmitLatestGameToCloud(IEnumerable<HandResult> humanMoves, IEnumerable<HandResult> computerMoves)
+        {
+            if (_cloudConfig.EnableCloudTraining)
+            {
+                // Need to create a CSV file from humanMoves, computerMoves
+                var str = Enumerable.Zip(humanMoves, computerMoves, (h, c) =>
+                    String.Join(" ", GameEngine.HandResultToString[h], GameEngine.HandResultToString[c], GameEngine.Compare(h, c).ToString())).ToArray()
+                    .Aggregate((a, b) => a + "\n" + b);
+
+                var webAPIUri = _cloudConfig.WebAPITrainUri;
+
+                var message = new HttpRequestMessage();
+                var content = new MultipartFormDataContent();
+
+                using (MemoryStream stream = new MemoryStream())
+                {
+                    StreamWriter streamWriter = new StreamWriter(stream);
+                    streamWriter.Write(str);
+                    streamWriter.Flush();
+                    stream.Position = 0;
+
+                    content.Add(new StreamContent(stream), "file", "game.csv");
+
+                    message.Method = HttpMethod.Post;
+                    message.Content = content;
+                    message.RequestUri = new Uri(webAPIUri);
+
+                    using (var client = new HttpClient())
+                    {
+                        var result = await client.SendAsync(message);
+                        Debug.WriteLine(string.Format("Game uploaded, server response '{0}'", result.StatusCode));
+                    }
+                }
+            }
         }
 
         private async Task Start()
@@ -271,6 +323,23 @@ namespace RockPaperScissors
                             computerMoves.Add(computerMove);
 
                             Debug.WriteLine(string.Format("--> {0} : {1}", humanMove, computerMove));
+
+                            // Every 20 moves, submit the history to the cloud for training
+                            if(humanMoves.Count() >= 20)
+                            {
+                                // Copy moves to temporary arrays and then clear the tracking history
+                                var humanMovesCopy = new HandResult[humanMoves.Count()];
+                                humanMoves.CopyTo(humanMovesCopy);
+
+                                var computerMovesCopy = new HandResult[humanMoves.Count()];
+                                humanMoves.CopyTo(computerMovesCopy);
+
+                                var submission = this.SubmitLatestGameToCloud(humanMoves, computerMoves);
+
+                                // Do not await submission, let it proceed asynchronously but clear the history
+                                humanMoves.Clear();
+                                computerMoves.Clear();
+                            }
                         }
                     }
                     else
