@@ -111,7 +111,7 @@ namespace RockPaperScissors
             lumMap = bgrMap.CvtColor(hsv ? ColorConversionCodes.BGR2HSV :
                 ColorConversionCodes.BGR2YCrCb);
 
-            mask1 = lumMap.Clone();
+//            mask1 = lumMap.Clone();
 
 #if false
             Mat[] channels;
@@ -206,7 +206,7 @@ namespace RockPaperScissors
                 Cv2.Polylines(myframe, new Point[][] { armPts }, true, armClr, 4, LineTypes.Link8);
             }
 
-            mask4 = mask.Clone();
+            mask1 = mask.Clone();
 
             return mask;
         }

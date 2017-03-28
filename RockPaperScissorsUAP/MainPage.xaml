@@ -9,7 +9,7 @@
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Margin="0,0,-176,-132">
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Height="60"  Width="1280" Margin="50,050,0,0">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Height="60"  Width="1000" Margin="50,50,0,0">
             <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Games played:" VerticalAlignment="Top" Width="225" TextAlignment="Left" FontSize="32"/>
             <TextBlock x:Name="tbGamesPlayed" HorizontalAlignment="Left" Height="60" Text="0" VerticalAlignment="Top" Width="75" TextAlignment="Left" FontSize="32"/>
             <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Human:" VerticalAlignment="Top" Width="150" TextAlignment="Right" FontSize="32"/>
@@ -21,24 +21,19 @@
 
         <Button x:Name="button" Content="Play" HorizontalAlignment="Left" Height="60" Margin="311,150,0,0" VerticalAlignment="Top" Width="219" FontSize="32" Click="button_Click"/>
         <CaptureElement Name="PreviewControl" Stretch="Uniform" Margin="50,270,0,0" Width="200" Height="180" HorizontalAlignment="Left" VerticalAlignment="Top" />
-        <!--       <Image x:Name="capture" HorizontalAlignment="Left" Height="180" Margin="40,278,0,0" VerticalAlignment="Top" Width="200" Source="Assets\RockPaperScissors.png"/>-->
         <Image x:Name="mask1" HorizontalAlignment="Left" Height="180" Margin="260,270,0,0" VerticalAlignment="Top" Width="200"/>
         <Image x:Name="mask2" HorizontalAlignment="Left" Height="180" Margin="470,270,0,0" VerticalAlignment="Top" Width="200"/>
         <Image x:Name="mask3" HorizontalAlignment="Left" Height="180" Margin="680,270,0,0" VerticalAlignment="Top" Width="200"/>
         <Image x:Name="mask4" HorizontalAlignment="Left" Height="180" Margin="890,270,0,0" VerticalAlignment="Top" Width="200"/>
-        <Image x:Name="capture" HorizontalAlignment="Left" Height="400" Margin="394,467,0,0" VerticalAlignment="Top" Width="800" Source="Assets\RockPaperScissors.png"/>
-<!--        <ToggleSwitch x:Name="greenScreen" Header="Green Screen" HorizontalAlignment="Left" Margin="1036,34,0,0" VerticalAlignment="Top" Toggled="greenScreen_Toggled"/> -->
+        <Image x:Name="capture" HorizontalAlignment="Left" Height="400" Margin="200,467,0,0" VerticalAlignment="Top" Width="600" Source="Assets\RockPaperScissors.png"/>
         <TextBlock x:Name="fingerTips" HorizontalAlignment="Left" Margin="40,467,0,0" TextWrapping="Wrap" Text="tips" VerticalAlignment="Top"/>
         <TextBlock x:Name="fingerDfcts" HorizontalAlignment="Left" Margin="40,492,0,0" TextWrapping="Wrap" Text="dfcts" VerticalAlignment="Top"/>
-        <Slider x:Name="slider" HorizontalAlignment="Left" Margin="1103,424,-3,0" VerticalAlignment="Top" Width="100" ValueChanged="slider_ValueChanged" Value="50">
-            <Slider.RenderTransform>
-                <CompositeTransform Rotation="-90"/>
-            </Slider.RenderTransform>
-        </Slider>
-        <Slider x:Name="slider2" HorizontalAlignment="Left" Margin="1103,577.845,-3,0" VerticalAlignment="Top" Width="100"  ValueChanged="slider2_ValueChanged" Value="50" UseLayoutRounding="False" d:LayoutRounding="Auto">
-            <Slider.RenderTransform>
-                <CompositeTransform Rotation="-90"/>
-            </Slider.RenderTransform>
-        </Slider>
+        <StackPanel Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Top" Height="300" Width="150" Margin="1050,20,0,0">
+            <TextBlock Text="Brightness" FontSize="24"/>
+            <Slider x:Name="slider" ValueChanged="slider_ValueChanged" Value="50"/>
+            <TextBlock />
+            <TextBlock Text="Palm Width" FontSize="24"/>
+            <Slider x:Name="slider2" ValueChanged="slider2_ValueChanged" Value="50"/>
+        </StackPanel>
     </Grid>
 </Page>

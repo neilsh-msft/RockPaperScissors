@@ -12,9 +12,12 @@ namespace RockPaperScissors
     class GameEngine
     {
         string modelFilePath;
+        Random rand;
+        
         public GameEngine(string modelFilePath)
         {
             this.modelFilePath = modelFilePath;
+            this.rand = new Random(0);
         }
 
         async Task<string> LaunchEvalCommand(byte[] buff)
@@ -32,22 +35,31 @@ namespace RockPaperScissors
 
             standardInput.Dispose();
 
-            var processLauncherResult = await ProcessLauncher.RunToCompletionAsync(@"EvalCS.exe", this.modelFilePath, processLauncherOptions);
-            using (var outStreamRedirect = standardOutput.GetInputStreamAt(0))
+            try
             {
-                var size = standardOutput.Size;
-                using (var dataReader = new DataReader(outStreamRedirect))
+                var processLauncherResult = await ProcessLauncher.RunToCompletionAsync(@"EvalCS.exe", this.modelFilePath, processLauncherOptions);
+                using (var outStreamRedirect = standardOutput.GetInputStreamAt(0))
                 {
-                    var bytesLoaded = await dataReader.LoadAsync((uint)size);
-                    var stringRead = dataReader.ReadString(bytesLoaded);
-                    var result = stringRead.Trim();
-                    if (processLauncherResult.ExitCode == 0)
+                    var size = standardOutput.Size;
+                    using (var dataReader = new DataReader(outStreamRedirect))
                     {
-                        return result;
+                        var bytesLoaded = await dataReader.LoadAsync((uint)size);
+                        var stringRead = dataReader.ReadString(bytesLoaded);
+                        var result = stringRead.Trim();
+                        if (processLauncherResult.ExitCode == 0)
+                        {
+                            return result;
+                        }
+                        // For non-0 return, the string should be the exception message
+                        throw new Exception(string.Format("Exception from EvalCS: {0}", result));
                     }
-                    // For non-0 return, the string should be the exception message
-                    throw new Exception(string.Format("Exception from EvalCS: {0}", result));
                 }
+            }
+            catch (System.IO.FileNotFoundException)
+            {
+                // EvalCS.exe not found, return random value
+                var values = StringToHandResult.Keys.ToArray();
+                return values[this.rand.Next(values.Length)];
             }
         }
 

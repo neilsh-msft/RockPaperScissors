@@ -72,6 +72,9 @@ namespace RockPaperScissors
         List<HandResult> humanMoves = new List<HandResult>();
         List<HandResult> computerMoves = new List<HandResult>();
 
+        // Image assets
+        static Dictionary<HandResult, BitmapImage> HandResultToImage = new Dictionary<HandResult, BitmapImage>();
+
         public MainPage()
         {
             this.InitializeComponent();
@@ -82,6 +85,11 @@ namespace RockPaperScissors
                 // Change this if you want to hit the Azure-hosted Web API app vs. localhost:
                 WebAPIUri = "http://localhost:3470/api/model"
             };
+
+            HandResultToImage[HandResult.Paper] = new BitmapImage(new Uri("ms-appx:///Assets/Paper.png"));
+            HandResultToImage[HandResult.Rock] = new BitmapImage(new Uri("ms-appx:///Assets/Rock.png"));
+            HandResultToImage[HandResult.Scissors] = new BitmapImage(new Uri("ms-appx:///Assets/Scissors.png"));
+
             var start = Start();
         }
 
@@ -241,6 +249,7 @@ namespace RockPaperScissors
 
                 if (humanMove != HandResult.None)
                 {
+                    mask2.Source = HandResultToImage[humanMove];
                     if (humanMove == lastHandResult)
                     {
                         handResultCount++;
@@ -250,9 +259,12 @@ namespace RockPaperScissors
                             tbHuman.Text = humanMove.ToString();
                             handResultCount = 0;
                             var computerMove = await _gameEngine.ComputerMove(totalGamesPlayed, humanMoves, computerMoves);
+                            mask3.Source = HandResultToImage[computerMove];
                             tbComputer.Text = computerMove.ToString();
                             var winOrLose = GameEngine.Compare(humanMove, computerMove);
                             tbResult.Text = winOrLose == 1 ? "You win" : winOrLose == -1 ? "You lose" : "Draw";
+                            ((StackPanel)tbResult.Parent).Background = winOrLose == 0 ? null :
+                                new SolidColorBrush(winOrLose == 1 ? Windows.UI.Colors.LightGreen : Windows.UI.Colors.Red);
                             tbGamesPlayed.Text = (++totalGamesPlayed).ToString();
 
                             humanMoves.Add(humanMove);
