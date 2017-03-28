@@ -45,7 +45,7 @@ void ModelTrainer::CreateModel()
 	size_t inputDim = 7 * LOOKBACK_MOVES;
 	size_t outputClasses = 3;
 	const size_t numHiddenLayers = HIDDEN_LAYERS;
-	size_t hiddenLayersDim = 1024;
+	size_t hiddenLayersDim = 32;
 	CNTK::DeviceDescriptor device = DeviceDescriptor::DefaultDevice();
 
 	_inputs = InputVariable({ inputDim }, CNTK::DataType::Float, L"Feature Vector");
