@@ -211,6 +211,28 @@ namespace RockPaperScissors
             return mask;
         }
 
+        public bool OnHotspot(Point p)
+        {
+            Point extentX = new Point(5, 0);
+            Point extentY = new Point(0, 5);
+            Scalar crossClr = red;
+            bool onHotspot = false;
+
+            if (contour != null)
+            {
+                if (Cv2.PointPolygonTest(fingers, p, false) > 0)
+                {
+                    onHotspot = true;
+                    crossClr = green;
+                }
+            }
+
+            Cv2.Line(myframe, p - extentX, p + extentX, crossClr, 4, LineTypes.Link8);
+            Cv2.Line(myframe, p - extentY, p + extentY, crossClr, 4, LineTypes.Link8);
+
+            return onHotspot;
+        }
+
         public void GetHull()
         {
             if (contour == null)

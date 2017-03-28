@@ -24,7 +24,6 @@ using Windows.Graphics.Imaging;
 
 using Windows.UI.Xaml.Media.Imaging;
 
-
 using Windows.ApplicationModel;
 using System.Threading.Tasks;
 using Windows.System.Display;
@@ -56,7 +55,7 @@ namespace RockPaperScissors
         private int _slider = 50;
         private int _slider2 = 50;
         DispatcherTimer _dispatcherTimer;
-        int _countDown;
+        int _countDown = 0;
         GameEngine _gameEngine;
         CloudConfig _cloudConfig;
 
@@ -70,6 +69,9 @@ namespace RockPaperScissors
         const int requiredCount = 2;
 
         int totalGamesPlayed = 0;
+        int wins = 0;
+        int losses = 0;
+        int draws = 0;
 
         // List of all moves used for eval and training
         List<HandResult> humanMoves = new List<HandResult>();
@@ -184,7 +186,7 @@ namespace RockPaperScissors
         private async void dispatcherTimer_Tick(object sender, object e)
         {
             _countDown -= 200;
-            button.Content = Math.Ceiling(_countDown / 1000.0).ToString();
+//            button.Content = Math.Ceiling(_countDown / 1000.0).ToString();
 
             if (_countDown <= -200)
             {
@@ -251,6 +253,7 @@ namespace RockPaperScissors
                 // detect the hand
                 Scalar minYCrCb, maxYCrCb;
                 Mat mask;
+                bool handInRange = false;
 
                 detector.SkinColorModel(mat, out maxYCrCb, out minYCrCb);
                 mask = detector.HandDetection(mat, maxYCrCb, minYCrCb);
@@ -263,13 +266,20 @@ namespace RockPaperScissors
                     tips = detector.GetFingerTips();
                 }
 
+                // check if in range and determine hand being played
+                handInRange = detector.OnHotspot(new Point(250, 240));
+                var humanMove = detector.Detect(tips, dfts);
+
                 fingerTips.Text = String.Format("Fingertips: {0}", tips);
                 fingerDfcts.Text = String.Format("Defects: {0}", dfts);
+                detectedPlay.Text = String.Format("Playing: {0}", humanMove);
 
-                SoftwareBitmap result = MatToSoftwareBitmap(detector.myframe);
-                SoftwareBitmapSource bitmapSource = new SoftwareBitmapSource();
-                await bitmapSource.SetBitmapAsync(result);
-                capture.Source = bitmapSource;
+                // Output openCV mats
+                if (detector.myframe != null)
+                {
+                    capture.Source = new SoftwareBitmapSource();
+                    await ((SoftwareBitmapSource)capture.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.myframe));
+                }
 
                 if (detector.mask1 != null)
                 {
@@ -295,28 +305,47 @@ namespace RockPaperScissors
                     await ((SoftwareBitmapSource)mask4.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask4));
                 }
 
-                var humanMove = detector.Detect(tips, dfts);
-
                 Debug.WriteLine(string.Format("{0} : current: {1}, last: {2}", DateTime.Now.ToLocalTime(), humanMove, lastHandResult));
 
+                // Determine winner of match
                 if (humanMove != HandResult.None)
                 {
-                    mask2.Source = HandResultToImage[humanMove];
                     if (humanMove == lastHandResult)
                     {
                         handResultCount++;
-                        if (handResultCount == requiredCount)
+                        if (handResultCount >= requiredCount && handInRange)
                         {
-                            // We've seen the same gesture requiredCount times. Accept it and kick of the eval
-                            tbHuman.Text = humanMove.ToString();
+                            // We've seen the same gesture requiredCount times. Accept it and kick off the eval
                             handResultCount = 0;
                             var computerMove = await _gameEngine.ComputerMove(totalGamesPlayed, humanMoves, computerMoves);
+                            mask2.Source = HandResultToImage[humanMove];
                             mask3.Source = HandResultToImage[computerMove];
-                            tbComputer.Text = computerMove.ToString();
                             var winOrLose = GameEngine.Compare(humanMove, computerMove);
-                            tbResult.Text = winOrLose == 1 ? "You win" : winOrLose == -1 ? "You lose" : "Draw";
-                            ((StackPanel)tbResult.Parent).Background = winOrLose == 0 ? null :
-                                new SolidColorBrush(winOrLose == 1 ? Windows.UI.Colors.LightGreen : Windows.UI.Colors.Red);
+
+                            switch (winOrLose)
+                            {
+                                case 1:
+                                    wins++;
+                                    tbResult.Text = "You win";
+                                    ((StackPanel)tbResult.Parent).Background = new SolidColorBrush(Windows.UI.Colors.LightGreen);
+                                    tbHuman.Text = wins.ToString();
+                                    break;
+
+                                case 0:
+                                    draws++;
+                                    tbResult.Text = "Draw";
+                                    ((StackPanel)tbResult.Parent).Background = null;
+                                    tbDraws.Text = losses.ToString();
+                                    break;
+
+                                case -1:
+                                    losses++;
+                                    tbResult.Text = "You lose";
+                                    ((StackPanel)tbResult.Parent).Background = new SolidColorBrush(Windows.UI.Colors.Red);
+                                    tbComputer.Text = losses.ToString();
+                                    break;
+                            }
+
                             tbGamesPlayed.Text = (++totalGamesPlayed).ToString();
 
                             humanMoves.Add(humanMove);
@@ -366,10 +395,12 @@ namespace RockPaperScissors
             byte[] bytes = new byte[image.Cols * image.Rows * 4];
             if (image.Type() == MatType.CV_8UC4)
             {
+                // Already in BGRA format, copy bytes
                 System.Runtime.InteropServices.Marshal.Copy(image.Data, bytes, 0, bytes.Length);
             }
             else if (image.Type() == MatType.CV_8UC3)
             {
+                // in BGR format, add the Alpha plane
                 Mat C255 = new Mat(image.Size(), MatType.CV_8UC1, new Scalar(255));
                 Mat temp = new Mat(image.Size(), MatType.CV_8UC4);
 
@@ -380,6 +411,7 @@ namespace RockPaperScissors
             }
             else if (image.Type() == MatType.CV_8UC1)
             {
+                // single monochrome plane
                 Mat C255 = new Mat(image.Size(), MatType.CV_8UC1, new Scalar(255));
                 Mat temp = new Mat(image.Size(), MatType.CV_8UC4);
 
@@ -402,7 +434,7 @@ namespace RockPaperScissors
             return result;
         }
 
-        private async void button_Click(object sender, RoutedEventArgs e)
+        private async Task<bool> startCapture()
         {
             try
             {
@@ -422,21 +454,31 @@ namespace RockPaperScissors
 
                 DisplayInformation.AutoRotationPreferences = DisplayOrientations.Landscape;
 
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // This will be thrown if the user denied access to the camera in privacy settings
+                System.Diagnostics.Debug.WriteLine("The app was denied access to the camera");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("MediaCapture initialization failed. {0}", ex.Message);
+                return false;
+            }
+            return true;
+        }
+
+        private async void button_Click(object sender, RoutedEventArgs e)
+        {
+            if (await startCapture())
+            {
                 // start timer.  Period = 3 seconds, subtract 1 every seconds, capture at -200ms.
                 _countDown = 3000;
                 _dispatcherTimer.Interval = TimeSpan.FromMilliseconds(200);
 
                 _dispatcherTimer.Start();
                 button.IsEnabled = false;
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // This will be thrown if the user denied access to the camera in privacy settings
-                System.Diagnostics.Debug.WriteLine("The app was denied access to the camera");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine("MediaCapture initialization failed. {0}", ex.Message);
             }
         }
 

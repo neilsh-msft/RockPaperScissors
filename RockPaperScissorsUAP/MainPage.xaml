@@ -9,13 +9,15 @@
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Margin="0,0,-176,-132">
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Height="60"  Width="1000" Margin="50,50,0,0">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Height="60"  Width="1280" Margin="50,50,0,0">
             <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Games played:" VerticalAlignment="Top" Width="225" TextAlignment="Left" FontSize="32"/>
             <TextBlock x:Name="tbGamesPlayed" HorizontalAlignment="Left" Height="60" Text="0" VerticalAlignment="Top" Width="75" TextAlignment="Left" FontSize="32"/>
-            <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Human:" VerticalAlignment="Top" Width="150" TextAlignment="Right" FontSize="32"/>
-            <TextBlock x:Name="tbHuman"       HorizontalAlignment="Left" Height="60" Text="" VerticalAlignment="Top" Width="150" TextAlignment="Left" FontSize="32"/>
-            <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Computer:" VerticalAlignment="Top" Width="150" TextAlignment="Right" FontSize="32"/>
-            <TextBlock x:Name="tbComputer"    HorizontalAlignment="Left" Height="60" Text="" VerticalAlignment="Top" Width="150" TextAlignment="Left" FontSize="32"/>
+            <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Wins:" VerticalAlignment="Top" Width="100" TextAlignment="Center" FontSize="32"/>
+            <TextBlock x:Name="tbHuman"       HorizontalAlignment="Left" Height="60" Text="0" VerticalAlignment="Top" Width="100" TextAlignment="Left" FontSize="32"/>
+            <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Losses:" VerticalAlignment="Top" Width="110" TextAlignment="Center" FontSize="32"/>
+            <TextBlock x:Name="tbComputer"    HorizontalAlignment="Left" Height="60" Text="0" VerticalAlignment="Top" Width="100" TextAlignment="Left" FontSize="32"/>
+            <TextBlock                        HorizontalAlignment="Left" Height="60" Text="Draws:" VerticalAlignment="Top" Width="100" TextAlignment="Center" FontSize="32"/>
+            <TextBlock x:Name="tbDraws"       HorizontalAlignment="Left" Height="60" Text="0" VerticalAlignment="Top" Width="110" TextAlignment="Left" FontSize="32"/>
             <TextBlock x:Name="tbResult"      HorizontalAlignment="Left" Height="60" Text="" VerticalAlignment="Top" Width="250" TextAlignment="Left" FontSize="32"/>
         </StackPanel>
 
@@ -28,7 +30,8 @@
         <Image x:Name="capture" HorizontalAlignment="Left" Height="400" Margin="200,467,0,0" VerticalAlignment="Top" Width="600" Source="Assets\RockPaperScissors.png"/>
         <TextBlock x:Name="fingerTips" HorizontalAlignment="Left" Margin="40,467,0,0" TextWrapping="Wrap" Text="tips" VerticalAlignment="Top"/>
         <TextBlock x:Name="fingerDfcts" HorizontalAlignment="Left" Margin="40,492,0,0" TextWrapping="Wrap" Text="dfcts" VerticalAlignment="Top"/>
-        <StackPanel Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Top" Height="300" Width="150" Margin="1050,20,0,0">
+        <TextBlock x:Name="detectedPlay" HorizontalAlignment="Left" Margin="40,517,0,0" TextWrapping="Wrap" Text="playing" VerticalAlignment="Top"/>
+        <StackPanel Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Top" Height="300" Width="150" Margin="1050,110,0,0">
             <TextBlock Text="Brightness" FontSize="24"/>
             <Slider x:Name="slider" ValueChanged="slider_ValueChanged" Value="50"/>
             <TextBlock />
