@@ -58,9 +58,9 @@ namespace TestClient
                 }
                 else if (command == "train")
                 {
-                    //var webAPIUri = "http://localhost:3470/api/training/game";
-                    var webAPIUri = "http://fetaeval.azurewebsites.net/api/training/game";
-                    var gameFile = "D:\\g\\brie\\rps.csv";
+                    var webAPIUri = "http://localhost:3470/api/training/game";
+                    //var webAPIUri = "http://fetaeval.azurewebsites.net/api/training/game";
+                    var gameFile = "D:\\g\\brie\\GameFiles\\rps.csv";
                     var task = TestTraining(webAPIUri, gameFile);
                     task.Wait();
                 }
