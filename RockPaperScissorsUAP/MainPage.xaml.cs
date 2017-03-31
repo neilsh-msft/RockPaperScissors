@@ -1,4 +1,5 @@
 ﻿#define RUN_CONTINUOUS
+#define RUN_EVALCS
 
 using System;
 using System.Collections.Generic;
@@ -92,6 +93,7 @@ namespace RockPaperScissors
             computerMoves.Add(HandResult.Paper);
             computerMoves.Add(HandResult.Paper);
 
+#if RUN_EVALCS
             _cloudConfig = new CloudConfig
             {
                 // Change this if you want to download the model from the cloud vs. embedded resource:
@@ -103,7 +105,19 @@ namespace RockPaperScissors
                 // Training intergace Uri:
                 WebAPITrainUri = "http://fetaeval.azurewebsites.net/api/training/game"
             };
-
+#else
+            _cloudConfig = new CloudConfig
+            {
+                // Change this if you want to download the model from the cloud vs. embedded resource:
+                DownloadRemoteFile = false,
+                // Change this if you want to hit the Azure-hosted Web API app vs. localhost:
+                WebAPIDownloadUri = string.Empty,
+                // Submit game data to the cloud for training:
+                EnableCloudTraining = false,
+                // Training intergace Uri:
+                WebAPITrainUri = string.Empty
+            };
+#endif
             HandResultToImage[HandResult.Paper] = new BitmapImage(new Uri("ms-appx:///Assets/Paper.png"));
             HandResultToImage[HandResult.Rock] = new BitmapImage(new Uri("ms-appx:///Assets/Rock.png"));
             HandResultToImage[HandResult.Scissors] = new BitmapImage(new Uri("ms-appx:///Assets/Scissors.png"));
@@ -113,20 +127,28 @@ namespace RockPaperScissors
 
         private async Task<string> DownloadModel()
         {
-            byte[] bytes;
-            if (_cloudConfig.DownloadRemoteFile)
+            try
             {
-                var client = new HttpClient();
-                bytes = await client.GetByteArrayAsync(_cloudConfig.WebAPIDownloadUri);
+                byte[] bytes;
+                if (_cloudConfig.DownloadRemoteFile)
+                {
+                    var client = new HttpClient();
+                    bytes = await client.GetByteArrayAsync(_cloudConfig.WebAPIDownloadUri);
+                }
+                else
+                {
+                    bytes = File.ReadAllBytes("Assets\\rps.model");
+                }
+                var storageFolder = ApplicationData.Current.LocalFolder;
+                var modelFile = await storageFolder.CreateFileAsync("rps.model", CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteBufferAsync(modelFile, bytes.AsBuffer());
+                return modelFile.Path;
             }
-            else
+            catch (Exception)
             {
-                bytes = File.ReadAllBytes("Assets\\rps.model");
+                Debug.WriteLine("Exception downloading model");
+                return null;
             }
-            var storageFolder = ApplicationData.Current.LocalFolder;
-            var modelFile = await storageFolder.CreateFileAsync("rps.model", CreationCollisionOption.ReplaceExisting);
-            await FileIO.WriteBufferAsync(modelFile, bytes.AsBuffer());
-            return modelFile.Path;
         }
 
         private async Task SubmitLatestGameToCloud(IEnumerable<HandResult> humanMoves, IEnumerable<HandResult> computerMoves)
@@ -171,7 +193,11 @@ namespace RockPaperScissors
             _gameEngine = new GameEngine(modelFilePath);
             _dispatcherTimer = new DispatcherTimer();
             _dispatcherTimer.Tick += dispatcherTimer_Tick;
-
+            capture.Source = new SoftwareBitmapSource();
+            mask1.Source = new SoftwareBitmapSource();
+            mask2.Source = new SoftwareBitmapSource();
+            mask3.Source = new SoftwareBitmapSource();
+            mask4.Source = new SoftwareBitmapSource();
 #if RUN_CONTINUOUS
             // Just always run for now.
             button_Click(null, null);
@@ -277,31 +303,26 @@ namespace RockPaperScissors
                 // Output openCV mats
                 if (detector.myframe != null)
                 {
-                    capture.Source = new SoftwareBitmapSource();
                     await ((SoftwareBitmapSource)capture.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.myframe));
                 }
 
                 if (detector.mask1 != null)
                 {
-                    mask1.Source = new SoftwareBitmapSource();
                     await ((SoftwareBitmapSource)mask1.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask1));
                 }
 
                 if (detector.mask2 != null)
                 {
-                    mask2.Source = new SoftwareBitmapSource();
                     await ((SoftwareBitmapSource)mask2.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask2));
                 }
 
                 if (detector.mask3 != null)
                 {
-                    mask3.Source = new SoftwareBitmapSource();
                     await ((SoftwareBitmapSource)mask3.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask3));
                 }
 
                 if (detector.mask4 != null)
                 {
-                    mask4.Source = new SoftwareBitmapSource();
                     await ((SoftwareBitmapSource)mask4.Source).SetBitmapAsync(MatToSoftwareBitmap(detector.mask4));
                 }
 
@@ -333,9 +354,9 @@ namespace RockPaperScissors
 
                                 case 0:
                                     draws++;
-                                    tbResult.Text = "Draw";
+                                    tbResult.Text = "You draw";
                                     ((StackPanel)tbResult.Parent).Background = null;
-                                    tbDraws.Text = losses.ToString();
+                                    tbDraws.Text = draws.ToString();
                                     break;
 
                                 case -1:
