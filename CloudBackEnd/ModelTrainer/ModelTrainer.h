@@ -5,7 +5,7 @@
 
 #define LOOKBACK_MOVES	5
 #define GAME_LENGTH		20
-#define HIDDEN_LAYERS	10
+#define HIDDEN_LAYERS	3
 
 namespace CntkTraining
 {
@@ -21,20 +21,13 @@ namespace CntkTraining
 		void CreateModel();
 		CNTK::TrainerPtr CreateTrainerForModel();
 
-		CNTK::FunctionPtr FullyConnectedFeedForwardClassifierNetWithSharedParameters(CNTK::Variable input,
-			size_t numHiddenLayers,
-			const CNTK::Parameter& inputTimesParam,
-			const CNTK::Parameter& inputPlusParam,
-			const CNTK::Parameter hiddenLayerTimesParam[],
-			const CNTK::Parameter hiddenLayerPlusParam[],
-			const CNTK::Parameter& outputTimesParam,
-			const std::function<CNTK::FunctionPtr(const CNTK::FunctionPtr&)>& nonLinearity);
-		CNTK::FunctionPtr FullyConnectedDNNLayerWithSharedParameters(CNTK::Variable input, const CNTK::Parameter& timesParam, const CNTK::Parameter& plusParam,
-			const std::function<CNTK::FunctionPtr(const CNTK::FunctionPtr&)>& nonLinearity);
-		CNTK::FunctionPtr SetupFullyConnectedLinearLayer(CNTK::Variable input, size_t outputDim, const CNTK::DeviceDescriptor& device,
-			const std::wstring& outputName = L"");
-		CNTK::FunctionPtr SetupFullyConnectedDNNLayer(CNTK::Variable input, size_t outputDim, const CNTK::DeviceDescriptor& device,
-			const std::function<CNTK::FunctionPtr(const CNTK::FunctionPtr&)>& nonLinearity);
+		CNTK::FunctionPtr LinearLayer(CNTK::Variable input, size_t outputDim, const CNTK::DeviceDescriptor& device);
+		CNTK::FunctionPtr Embedding(CNTK::Variable input, size_t embeddingDim, const CNTK::DeviceDescriptor& device);
+		CNTK::FunctionPtr SelectLast(CNTK::Variable operand);
+		std::vector<CNTK::FunctionPtr> LSTMPCellWithSelfStabilization(CNTK::Variable input, CNTK::Variable prevOutput, CNTK::Variable prevCellState, const CNTK::DeviceDescriptor& device);
+		std::vector<CNTK::FunctionPtr> LSTMPComponentWithSelfStabilization(CNTK::Variable input, size_t outputDim, size_t cellDim, const CNTK::DeviceDescriptor& device);
+		CNTK::FunctionPtr LSTMSequenceClassifierNet(CNTK::Variable input, size_t outputClasses, size_t embeddingDim,
+			size_t lstmDim, size_t cellDim, const CNTK::DeviceDescriptor& device);
 
 		CNTK::FunctionPtr _model;
 		CNTK::Variable _inputs, _labels;

@@ -44,15 +44,9 @@ int TrainModel(const wchar_t* modelFilePath, const wchar_t* dataFilePath)
 
 	try
 	{
-		if (!DoesFileExist(modelFilePath))
-			return 10;
-
 		if (!DoesFileExist(dataFilePath))
-			return 11;
-
-		if (!DoesFileExist(modelFilePath) || !DoesFileExist(dataFilePath))
 		{
-			cout << "Cannot find one of the input files. Both must exist";
+			cout << "Cannot find the game input data file.";
 			return 1;
 		}
 
@@ -61,8 +55,9 @@ int TrainModel(const wchar_t* modelFilePath, const wchar_t* dataFilePath)
 		delete(trainer);
 		return 0;
 	}
-	catch (...)
+	catch (std::exception exc)
 	{
+		cout << exc.what();
 		return -1;
 	}
 }
@@ -86,105 +81,146 @@ void ModelTrainer::CreateModel()
 {
 	// Define the model from scratch for training
 	size_t inputDim = 7 * LOOKBACK_MOVES;
-	size_t outputClasses = 3;
-	const size_t numHiddenLayers = HIDDEN_LAYERS;
-	size_t hiddenLayersDim = 32;
+	size_t cellDim = 25;
+	size_t hiddenDim = 25;
+	size_t embeddingDim = 50;
+	size_t numOutputClasses = 3;
 	CNTK::DeviceDescriptor device = DeviceDescriptor::DefaultDevice();
 
 	_inputs = InputVariable({ inputDim }, CNTK::DataType::Float, L"Feature Vector");
-	_labels = InputVariable({ outputClasses }, CNTK::DataType::Float, L"Labels");
-	
-	// Define model parameters that should be shared among evaluation requests against the same model
-	auto inputTimesParam = Parameter(NDArrayView::RandomUniform<float>({ hiddenLayersDim, inputDim }, -0.5, 0.5, 1, device));
-	auto inputPlusParam = Parameter({ hiddenLayersDim }, 0.0f, device);
-	Parameter hiddenLayerTimesParam[numHiddenLayers - 1] = {
-		Parameter(NDArrayView::RandomUniform<float>({ hiddenLayersDim, hiddenLayersDim }, -0.5, 0.5, 1, device)),
-		Parameter(NDArrayView::RandomUniform<float>({ hiddenLayersDim, hiddenLayersDim }, -0.5, 0.5, 1, device)),
-		Parameter(NDArrayView::RandomUniform<float>({ hiddenLayersDim, hiddenLayersDim }, -0.5, 0.5, 1, device)),
-		Parameter(NDArrayView::RandomUniform<float>({ hiddenLayersDim, hiddenLayersDim }, -0.5, 0.5, 1, device)),
-		Parameter(NDArrayView::RandomUniform<float>({ hiddenLayersDim, hiddenLayersDim }, -0.5, 0.5, 1, device)),
-		Parameter(NDArrayView::RandomUniform<float>({ hiddenLayersDim, hiddenLayersDim }, -0.5, 0.5, 1, device)),
-		Parameter(NDArrayView::RandomUniform<float>({ hiddenLayersDim, hiddenLayersDim }, -0.5, 0.5, 1, device)),
-		Parameter(NDArrayView::RandomUniform<float>({ hiddenLayersDim, hiddenLayersDim }, -0.5, 0.5, 1, device)),
-		Parameter(NDArrayView::RandomUniform<float>({ hiddenLayersDim, hiddenLayersDim }, -0.5, 0.5, 1, device))
-	};
-	Parameter hiddenLayerPlusParam[numHiddenLayers - 1] = {
-		Parameter({ hiddenLayersDim }, 0.0f, device),
-		Parameter({ hiddenLayersDim }, 0.0f, device),
-		Parameter({ hiddenLayersDim }, 0.0f, device),
-		Parameter({ hiddenLayersDim }, 0.0f, device),
-		Parameter({ hiddenLayersDim }, 0.0f, device),
-		Parameter({ hiddenLayersDim }, 0.0f, device),
-		Parameter({ hiddenLayersDim }, 0.0f, device),
-		Parameter({ hiddenLayersDim }, 0.0f, device),
-		Parameter({ hiddenLayersDim }, 0.0f, device),
-	};
-	auto outputTimesParam = Parameter(NDArrayView::RandomUniform<float>({ outputClasses, hiddenLayersDim }, -0.5, 0.5, 1, device));
+	_labels = InputVariable({ numOutputClasses }, CNTK::DataType::Float, L"Labels", { Axis::DefaultBatchAxis() });
 
-	_model = FullyConnectedFeedForwardClassifierNetWithSharedParameters(_inputs,
-																		numHiddenLayers,
-																		inputTimesParam,
-																		inputPlusParam,
-																		hiddenLayerTimesParam,
-																		hiddenLayerPlusParam,
-																		outputTimesParam,
-																		std::bind(Sigmoid, std::placeholders::_1, L""));
+	_model = LSTMSequenceClassifierNet(_inputs, numOutputClasses, embeddingDim, hiddenDim, cellDim, device);
 }
 
-inline FunctionPtr ModelTrainer::FullyConnectedFeedForwardClassifierNetWithSharedParameters(Variable input,
-	size_t numHiddenLayers,
-	const Parameter& inputTimesParam,
-	const Parameter& inputPlusParam,
-	const Parameter hiddenLayerTimesParam[],
-	const Parameter hiddenLayerPlusParam[],
-	const Parameter& outputTimesParam,
-	const std::function<FunctionPtr(const FunctionPtr&)>& nonLinearity)
+// LSTM Network - Derived from the Python NN Layers
+
+inline FunctionPtr ModelTrainer::LSTMSequenceClassifierNet(Variable input, size_t outputClasses, size_t embeddingDim, size_t lstmDim, size_t cellDim, const DeviceDescriptor& device)
 {
-	assert(numHiddenLayers >= 1);
-	auto classifierRoot = FullyConnectedDNNLayerWithSharedParameters(input, inputTimesParam, inputPlusParam, nonLinearity);
-
-	for (size_t i = 1; i < numHiddenLayers; ++i)
-	{
-		classifierRoot = FullyConnectedDNNLayerWithSharedParameters(classifierRoot, hiddenLayerTimesParam[i - 1], hiddenLayerPlusParam[i - 1], nonLinearity);
-	}
-
-	// Todo: assume that outputTimesParam has matched output dim and hiddenLayerDim
-	classifierRoot = Times(outputTimesParam, classifierRoot);
-	return classifierRoot;
+	// Ignore the embedding layer for now.
+	//auto embeddingFunction = Embedding(input, embeddingDim, device);
+	//auto lstmFunction = LSTMPComponentWithSelfStabilization(embeddingFunction->Output(), lstmDim, cellDim, device)[0];
+	auto lstmFunction = LSTMPComponentWithSelfStabilization(input, lstmDim, cellDim, device)[0];
+	auto thoughtVector = CNTK::Sequence::Last(lstmFunction);
+	return LinearLayer(thoughtVector, outputClasses, device);
 }
 
-// Taken from the CNTK Examples
-inline FunctionPtr ModelTrainer::FullyConnectedDNNLayerWithSharedParameters(Variable input,
-	const Parameter& timesParam,
-	const Parameter& plusParam,
-	const std::function<FunctionPtr(const FunctionPtr&)>& nonLinearity)
+inline FunctionPtr ModelTrainer::Embedding(Variable input, size_t embeddingDim, const DeviceDescriptor& device)
 {
 	assert(input.Shape().Rank() == 1);
+	size_t inputDim = input.Shape()[0];
 
-	// Todo: assume that timesParam has matched outputDim and inputDim 
-	auto timesFunction = Times(timesParam, input);
+	auto embeddingParam = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ inputDim, embeddingDim }, -0.05, 0.05, 1, device));
 
-	// Todo: assume that timesParam has matched outputDim 
-	auto plusFunction = Plus(plusParam, timesFunction);
-
-	return nonLinearity(plusFunction);
+	return CNTK::Times(input, embeddingParam);
 }
 
-inline FunctionPtr ModelTrainer::SetupFullyConnectedLinearLayer(Variable input, size_t outputDim, const DeviceDescriptor& device, const std::wstring& outputName)
+inline std::vector<FunctionPtr> ModelTrainer::LSTMPComponentWithSelfStabilization(Variable input, size_t outputDim, size_t cellDim, const DeviceDescriptor& device)
+{
+	auto dh = CNTK::PlaceholderVariable({ outputDim }, input.DynamicAxes());
+	auto dc = CNTK::PlaceholderVariable({ cellDim }, input.DynamicAxes());
+
+	auto LSTMCell = LSTMPCellWithSelfStabilization(input, dh, dc, device);
+	auto actualDh = CNTK::PastValue(LSTMCell[0]);
+	auto actualDc = CNTK::PastValue(LSTMCell[1]);
+
+	// Form the recurrence loop by replacing the dh and dc placeholders with
+	// the actualDh and actualDc
+	std::unordered_map<Variable, Variable> placeholders = { { dh, actualDh->Output() },{ dc, actualDc->Output() } };
+	LSTMCell[0]->ReplacePlaceholders(placeholders);
+
+	std::vector<FunctionPtr> returnVector = { LSTMCell[0], LSTMCell[1] };
+	return returnVector;
+}
+
+std::vector<FunctionPtr> ModelTrainer::LSTMPCellWithSelfStabilization(Variable input, Variable prevOutput, Variable prevCellState, const DeviceDescriptor& device)
+{
+	size_t inputDim = input.Shape()[0];
+	size_t outputDim = prevOutput.Shape()[0];
+	size_t cellDim = prevCellState.Shape()[0];
+
+	auto Wxo = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ inputDim, cellDim }, -0.05, 0.05, 1, device));
+	auto Wxi = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ inputDim, cellDim }, -0.05, 0.05, 1, device));
+	auto Wxf = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ inputDim, cellDim }, -0.05, 0.05, 1, device));
+	auto Wxc = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ inputDim, cellDim }, -0.05, 0.05, 1, device));
+
+	auto Bo = CNTK::Parameter({ cellDim }, 0.0f, device);
+	auto Bc = CNTK::Parameter({ cellDim }, 0.0f, device);
+	auto Bi = CNTK::Parameter({ cellDim }, 0.0f, device);
+	auto Bf = CNTK::Parameter({ cellDim }, 0.0f, device);
+
+	auto Whi = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ outputDim, cellDim }, -0.05, 0.05, 1, device));
+	auto Wci = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ cellDim }, -0.05, 0.05, 1, device));
+
+	auto Whf = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ outputDim, cellDim }, -0.05, 0.05, 1, device));
+	auto Wcf = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ cellDim }, -0.05, 0.05, 1, device));
+
+	auto Who = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ outputDim, cellDim }, -0.05, 0.05, 1, device));
+	auto Wco = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ cellDim }, -0.05, 0.05, 1, device));
+
+	auto Whc = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ outputDim, cellDim }, -0.05, 0.05, 1, device));
+
+	auto Wmr = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ cellDim, outputDim }, -0.05, 0.05, 1, device));
+
+	// Stabilization by routing input through an extra scalar parameter
+	auto expsWxo = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+	auto expsWxi = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+	auto expsWxf = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+	auto expsWxc = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+
+	auto expsWhi = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+	auto expsWci = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+
+	auto expsWhf = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+	auto expsWcf = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+	auto expsWho = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+	auto expsWco = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+	auto expsWhc = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+
+	auto expsWmr = CNTK::Exp(CNTK::Parameter({ 1 }, 0.0f, device));
+
+	auto Wxix = CNTK::Times(CNTK::ElementTimes(expsWxi, input), Wxi);
+	auto Whidh = CNTK::Times(CNTK::ElementTimes(expsWhi, prevOutput), Whi);
+	auto Wcidc = CNTK::ElementTimes(Wci, CNTK::ElementTimes(expsWci, prevCellState));
+
+	auto it = CNTK::Sigmoid(Wxix + Bi + Whidh + Wcidc);
+	auto Wxcx = CNTK::Times(CNTK::ElementTimes(expsWxc, input), Wxc);
+	auto Whcdh = CNTK::Times(CNTK::ElementTimes(expsWhc, prevOutput), Whc);
+	auto bit = CNTK::ElementTimes(it, CNTK::Tanh(Wxcx + Whcdh + Bc)); 
+	auto Wxfx = CNTK::Times(CNTK::ElementTimes(expsWxf, input), Wxf);
+	auto Whfdh = CNTK::Times(CNTK::ElementTimes(expsWhf, prevOutput), Whf);
+	auto Wcfdc = CNTK::ElementTimes(Wcf, CNTK::ElementTimes(expsWcf, prevCellState));
+
+	auto ft = CNTK::Sigmoid(Wxfx + Bf + Whfdh + Wcfdc);
+	auto bft = CNTK::ElementTimes(ft, prevCellState);
+
+	auto ct = bft + bit;
+
+	auto Wxox = CNTK::Times(CNTK::ElementTimes(expsWxo, input), Wxo);
+	auto Whodh = CNTK::Times(CNTK::ElementTimes(expsWho, prevOutput), Who);
+	auto Wcoct = CNTK::ElementTimes(Wco, CNTK::ElementTimes(expsWco, ct));
+
+	auto ot = CNTK::Sigmoid(Wxox + Bo + Whodh + Wcoct);
+
+	auto mt = CNTK::ElementTimes(ot, CNTK::Tanh(ct));
+	std::vector<FunctionPtr> returnVector = { CNTK::Times(CNTK::ElementTimes(expsWmr, mt), Wmr), ct };
+	return returnVector;
+}
+
+inline FunctionPtr ModelTrainer::SelectLast(Variable operand)
+{
+	return CNTK::Slice(operand, CNTK::Axis::DefaultDynamicAxis(), -1, 0);
+}
+
+inline FunctionPtr ModelTrainer::LinearLayer(Variable input, size_t outputDim, const DeviceDescriptor& device)
 {
 	assert(input.Shape().Rank() == 1);
 	size_t inputDim = input.Shape()[0];
 
 	auto timesParam = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ outputDim, inputDim }, -0.05, 0.05, 1, device));
-	auto timesFunction = CNTK::Times(timesParam, input);
-
-	auto plusParam = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ outputDim }, -0.05, 0.05, 1, device));
-	return CNTK::Plus(plusParam, timesFunction, outputName);
-}
-
-inline FunctionPtr ModelTrainer::SetupFullyConnectedDNNLayer(Variable input, size_t outputDim, const DeviceDescriptor& device, const std::function<FunctionPtr(const FunctionPtr&)>& nonLinearity)
-{
-	return nonLinearity(SetupFullyConnectedLinearLayer(input, outputDim, device));
+	auto biasParam = CNTK::Parameter({ outputDim }, 0, device);
+	auto timesFunction = CNTK::Times(input, timesParam);
+	return CNTK::Plus(biasParam, timesFunction);
 }
 
 CNTK::TrainerPtr ModelTrainer::CreateTrainerForModel()

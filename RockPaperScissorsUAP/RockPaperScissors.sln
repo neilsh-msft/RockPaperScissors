@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RockPaperScissors", "RockPa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EvalCS", "..\EvalCS\EvalCS.csproj", "{3A6C2B9B-1D72-4970-BDD7-6F2689745588}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EvalCpp", "..\EvalCpp\EvalCpp.vcxproj", "{4FB3D220-CC6D-4061-A711-51E25FB76642}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{3A6C2B9B-1D72-4970-BDD7-6F2689745588}.Release|x64.Build.0 = Release|Any CPU
 		{3A6C2B9B-1D72-4970-BDD7-6F2689745588}.Release|x86.ActiveCfg = Release|Any CPU
 		{3A6C2B9B-1D72-4970-BDD7-6F2689745588}.Release|x86.Build.0 = Release|Any CPU
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Debug|Any CPU.ActiveCfg = Debug|Win32
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Debug|ARM.ActiveCfg = Debug|Win32
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Debug|x64.ActiveCfg = Debug|x64
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Debug|x64.Build.0 = Debug|x64
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Debug|x86.ActiveCfg = Debug|Win32
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Debug|x86.Build.0 = Debug|Win32
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Release|Any CPU.ActiveCfg = Release|Win32
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Release|ARM.ActiveCfg = Release|Win32
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Release|x64.ActiveCfg = Release|x64
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Release|x64.Build.0 = Release|x64
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Release|x86.ActiveCfg = Release|Win32
+		{4FB3D220-CC6D-4061-A711-51E25FB76642}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
