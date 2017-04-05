@@ -90,12 +90,14 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Layers.h" />
     <ClInclude Include="ModelTrainer.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="TrainingData.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Layers.cpp" />
     <ClCompile Include="ModelTrainer.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="TrainingData.cpp" />
