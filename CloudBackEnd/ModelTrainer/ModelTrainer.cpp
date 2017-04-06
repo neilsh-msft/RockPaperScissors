@@ -82,33 +82,40 @@ void ModelTrainer::CreateModel()
 {
 	// Define the model from scratch for training
 	size_t inputDim = 7 * LOOKBACK_MOVES;
-	size_t cellDim = 25;
-	size_t hiddenDim = 25;
-	size_t embeddingDim = 50;
 	size_t numOutputClasses = 3;
+	size_t cellDim = 28;
+	size_t hiddenLayersDim = 64;
 	CNTK::DeviceDescriptor device = DeviceDescriptor::DefaultDevice();
 
 	_inputs = InputVariable({ inputDim }, CNTK::DataType::Float, L"Feature Vector");
-	_labels = InputVariable({ numOutputClasses }, CNTK::DataType::Float, L"Labels");
+	_labels = InputVariable({ numOutputClasses }, CNTK::DataType::Float, L"Labels", { Axis::DefaultBatchAxis() });
 
-	_model = LSTMSequenceClassifierNet(_inputs, numOutputClasses, hiddenDim, LOOKBACK_MOVES, cellDim, device);
+#ifdef LSTM_NETWORK
+	_model = LSTMSequenceClassifierNet(_inputs, numOutputClasses, hiddenLayersDim, cellDim, LOOKBACK_MOVES, device);
+#else
+	_model = FeedForwardClassifier(_inputs, numOutputClasses, hiddenLayersDim, device);
+#endif
 }
 
-// LSTM Network - Derived from the Python NN Layers
-
-inline FunctionPtr ModelTrainer::LSTMSequenceClassifierNet(Variable input, size_t outputClasses, size_t embeddingDim, size_t lstmDim, size_t cellDim, const DeviceDescriptor& device)
+FunctionPtr ModelTrainer::FeedForwardClassifier(Variable input, size_t outputClasses, size_t hiddenLayersDim, const DeviceDescriptor& device)
 {
-	// Ignore the embedding layer for now.
-	auto lstmFunction = Layers::LSTM(input, outputClasses, embeddingDim, cellDim, lstmDim, device);
-	//auto thoughtVector = CNTK::Sequence::Last(lstmFunction);
-	//return Layers::UniformLinear(CNTK::Dropout(thoughtVector, 0.2f), outputClasses, 0.0f, device);
-	return lstmFunction;
+	// init = glorotuniform, activation = sigmoid
+	auto classifierRoot = input;
+	for (int i = 0; i < HIDDEN_LAYERS; i++)
+	{
+		classifierRoot = Layers::Dense(classifierRoot, hiddenLayersDim, CNTK::GlorotUniformInitializer(),
+			std::bind(Sigmoid, std::placeholders::_1, L""), true, 0.0f, device);
+	}
 
-	//auto embeddingFunction = Layers::Embedding(input, embeddingDim, device);
-	//auto lstmFunction = LSTMPComponentWithSelfStabilization(embeddingFunction->Output(), lstmDim, cellDim, device)[0];
-	//auto lstmFunction = LSTMPComponentWithSelfStabilization(input, lstmDim, cellDim, device)[0];
-	//auto thoughtVector = CNTK::Sequence::Last(lstmFunction);
-	//return Layers::UniformLinear(thoughtVector, outputClasses, 0.0f, device);
+	return Layers::Dense(classifierRoot, outputClasses, device);
+}
+
+FunctionPtr ModelTrainer::LSTMSequenceClassifierNet(Variable input, size_t outputClasses, size_t hiddenDim, size_t cellDim, size_t lstmCells, const DeviceDescriptor& device)
+{
+	auto lstmFunction = Layers::LSTM(input, outputClasses, hiddenDim, cellDim, lstmCells);
+	auto thoughtVector = CNTK::Sequence::Last(lstmFunction);
+	auto dropoutFunction = CNTK::Dropout(thoughtVector, 0.2f);
+	return Layers::Dense(dropoutFunction, outputClasses, device);
 }
 
 CNTK::TrainerPtr ModelTrainer::CreateTrainerForModel()
@@ -116,7 +123,11 @@ CNTK::TrainerPtr ModelTrainer::CreateTrainerForModel()
 	// Create a trainer
 	auto lossFunction = CrossEntropyWithSoftmax(_model->Output(), _labels, L"Loss Function");
 	auto evalFunction = ClassificationError(_model->Output(), _labels, L"Classification Error");
-	auto learningFunction = SGDLearner(_model->Parameters(), LearningRateSchedule(0.125, LearningRateSchedule::UnitType::Minibatch));
+#ifdef LSTM_NETWORK
+	auto learningFunction = MomentumSGDLearner(_model->Parameters(), LearningRatePerSampleSchedule(0.01), MomentumAsTimeConstantSchedule(256), true);
+#else
+	auto learningFunction = SGDLearner(_model->Parameters(), LearningRatePerMinibatchSchedule(0.125));
+#endif
 	return CreateTrainer(_model, lossFunction, evalFunction, { learningFunction });
 }
 

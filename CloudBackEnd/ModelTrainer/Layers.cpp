@@ -10,13 +10,15 @@ using namespace CNTK;
 
 FunctionPtr Layers::UniformLinear(Variable input, size_t outputDim, float bias, const DeviceDescriptor& device)
 {
-	assert(input.Shape().Rank() == 1);
+	return Dense(input, outputDim, CNTK::UniformInitializer(0.05), Identity, true, bias, device);
+
+	/* assert(input.Shape().Rank() == 1);
 	size_t inputDim = input.Shape()[0];
 
-	auto weightParam = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ inputDim, outputDim }, -0.05, 0.05, 1, device));
-	auto biasParam = CNTK::Parameter({ outputDim }, bias, device);
+	auto weightParam = Parameter(NDArrayView::RandomUniform<float>({ outputDim, inputDim }, -0.05, 0.05, 1, device));
+	auto biasParam = Parameter({ outputDim }, bias, device);
 
-	return CNTK::Plus(biasParam, CNTK::Times(input, weightParam));
+	return Plus(Times(weightParam, input), biasParam); */
 }
 
 FunctionPtr Layers::Embedding(Variable input, size_t embeddingDim, const DeviceDescriptor& device)
@@ -24,52 +26,56 @@ FunctionPtr Layers::Embedding(Variable input, size_t embeddingDim, const DeviceD
 	assert(input.Shape().Rank() == 1);
 	size_t inputDim = input.Shape()[0];
 
-	auto embeddingParam = CNTK::Parameter(CNTK::NDArrayView::RandomUniform<float>({ inputDim, embeddingDim }, -0.05, 0.05, 1, device));
+	auto embeddingParam = Parameter(NDArrayView::RandomUniform<float>({ inputDim, embeddingDim }, -0.05, 0.05, 1, device));
 
-	return CNTK::Times(input, embeddingParam);
+	return Times(input, embeddingParam);
 }
 
 // Layer factory function to create an instance of a fully-connected linear layer of the form
-// activation(input * W + b).
-FunctionPtr Layers::Dense(size_t outputDim, const std::function<FunctionPtr(const FunctionPtr&)>& activation,
-								ParameterInitializer& initializer,
-								float bias, float init_bias, const DeviceDescriptor& device)
+// activation(W * input + b).
+FunctionPtr Layers::Dense(Variable input, size_t outputDim, ParameterInitializer& initializer, const std::function<FunctionPtr(const FunctionPtr&)>& activation,
+								bool bias, float init_bias, const DeviceDescriptor& device)
 {
-	auto weightParam = CNTK::Parameter({ outputDim, NDShape::InferredDimension }, DataType::Float, initializer, device);
-	auto biasParam = CNTK::Parameter({ outputDim }, bias, device);
-	auto input = CNTK::PlaceholderVariable();
-
-	// activation = std::bind(Sigmoid, std::placeholders::_1, L"");
+	auto weightParam = Parameter({ outputDim, NDShape::InferredDimension }, DataType::Float, initializer, device);
+	auto biasParam = Parameter({ outputDim }, init_bias, device);
 
 	// Wx + b
-	return activation(CNTK::Plus(biasParam, CNTK::Times(input, weightParam)));
+	return activation(Plus(Times(weightParam, input), biasParam));
 }
 
-FunctionPtr Layers::LSTM(Variable input, size_t numOutputClasses, size_t hiddenDim, size_t cellDim, size_t lstmDim, const DeviceDescriptor& device)
+FunctionPtr Layers::Dense(CNTK::Variable input, size_t outputDim, const DeviceDescriptor& device)
+{
+	return Dense(input, outputDim, CNTK::GlorotUniformInitializer(), Identity, true, 0.0f, device);
+}
+
+
+FunctionPtr Layers::LSTM(Variable input, size_t numOutputClasses, size_t hiddenDim, size_t cellDim, size_t lstmCells, const DeviceDescriptor& device)
 {
 	FunctionPtr classifierRoot = input;
 	auto pastValueRecurrenceHook = [](const Variable& x) { return PastValue(x); };
 
-	for (size_t i = 0; i < lstmDim; i++)
+	for (size_t i = 0; i < lstmCells; i++)
 	{
 		classifierRoot = LSTMPComponentWithSelfStabilization(classifierRoot, { hiddenDim }, { cellDim }, pastValueRecurrenceHook, pastValueRecurrenceHook, device).first;
 	}
 
-	auto W = Parameter(NDArrayView::RandomUniform<float>({ numOutputClasses, hiddenDim }, -0.5, 0.5, 1, device));
+	return classifierRoot;
+
+	/* auto W = Parameter(NDArrayView::RandomUniform<float>({ numOutputClasses, hiddenDim }, -0.5, 0.5, 1, device));
 	auto b = Parameter({ numOutputClasses }, 0.0f, device);
 
 	auto sW = Parameter({}, 0.0f, device);
 	auto expsW = Exp(sW);
 
-	return Plus(Times(W, ElementTimes(expsW, classifierRoot)), b);
+	return Plus(Times(W, ElementTimes(expsW, classifierRoot)), b); */
 }
 
 std::pair<FunctionPtr, FunctionPtr> Layers::LSTMPComponentWithSelfStabilization(Variable input, const NDShape& outputShape, const NDShape& cellShape,
 	const std::function<FunctionPtr(const Variable&)>& recurrenceHookH, const std::function<FunctionPtr(const Variable&)>& recurrenceHookC,
 	const DeviceDescriptor& device)
 {
-	auto dh = CNTK::PlaceholderVariable(outputShape, input.DynamicAxes());
-	auto dc = CNTK::PlaceholderVariable(cellShape, input.DynamicAxes());
+	auto dh = PlaceholderVariable(outputShape, input.DynamicAxes());
+	auto dc = PlaceholderVariable(cellShape, input.DynamicAxes());
 
 	auto LSTMCell = LSTMPCellWithSelfStabilization(input, dh, dc, device);
 	auto actualDh = recurrenceHookH(LSTMCell.first);
