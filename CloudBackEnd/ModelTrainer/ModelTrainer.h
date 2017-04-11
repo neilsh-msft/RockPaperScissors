@@ -3,10 +3,12 @@
 #include <string>
 #include "CNTKLibrary.h"
 
-#define LOOKBACK_MOVES	5
-#define GAME_LENGTH		20
-#define HIDDEN_LAYERS	3
-#define LSTM_NETWORK
+#define TRAINING_FACTOR   3
+#define GAME_LENGTH		  20
+#define HIDDEN_LAYERS	  3
+#define HIDDEN_LAYERS_DIM 64
+#define LSTM_NETWORK      1
+#define LSTM_CELL_DIM     128
 
 namespace CntkTraining
 {
@@ -29,5 +31,6 @@ namespace CntkTraining
 		CNTK::FunctionPtr _model;
 		CNTK::Variable _inputs, _labels;
 		std::wstring _modelFile, _dataFile;
+		int lookbackMoves;
 	};
 }

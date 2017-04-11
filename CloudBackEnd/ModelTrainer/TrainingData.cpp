@@ -34,13 +34,13 @@ vector<float> TrainingData::EncodeFeature(string hm, string cm, string wld)
 	return hFeature;
 }
 
-vector<float> TrainingData::EncodeDefaultFeature()
+vector<float> TrainingData::EncodeDefaultFeature(int lookback)
 {
 	vector<float> featureData;
 
-	for (int i = 0; i < LOOKBACK_MOVES; i++)
+	for (int i = 0; i < lookback; i++)
 	{
-		auto feature = EncodeFeature("", "", "1");
+		auto feature = EncodeFeature("", "", "0");
 		featureData.insert(end(featureData), begin(feature), end(feature));
 	}
 

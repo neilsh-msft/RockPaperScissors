@@ -81,17 +81,17 @@ void ModelTrainer::LoadModel()
 void ModelTrainer::CreateModel()
 {
 	// Define the model from scratch for training
-	size_t inputDim = 7 * LOOKBACK_MOVES;
+	size_t inputDim = 7 * lookbackMoves;
 	size_t numOutputClasses = 3;
-	size_t cellDim = 28;
-	size_t hiddenLayersDim = 64;
+	size_t cellDim = LSTM_CELL_DIM;
+	size_t hiddenLayersDim = HIDDEN_LAYERS_DIM;
 	CNTK::DeviceDescriptor device = DeviceDescriptor::DefaultDevice();
 
 	_inputs = InputVariable({ inputDim }, CNTK::DataType::Float, L"Feature Vector");
 	_labels = InputVariable({ numOutputClasses }, CNTK::DataType::Float, L"Labels", { Axis::DefaultBatchAxis() });
 
 #ifdef LSTM_NETWORK
-	_model = LSTMSequenceClassifierNet(_inputs, numOutputClasses, hiddenLayersDim, cellDim, LOOKBACK_MOVES, device);
+	_model = LSTMSequenceClassifierNet(_inputs, numOutputClasses, hiddenLayersDim, cellDim, lookbackMoves, device);
 #else
 	_model = FeedForwardClassifier(_inputs, numOutputClasses, hiddenLayersDim, device);
 #endif
@@ -115,17 +115,21 @@ FunctionPtr ModelTrainer::LSTMSequenceClassifierNet(Variable input, size_t outpu
 	auto lstmFunction = Layers::LSTM(input, outputClasses, hiddenDim, cellDim, lstmCells);
 	auto thoughtVector = CNTK::Sequence::Last(lstmFunction);
 	auto dropoutFunction = CNTK::Dropout(thoughtVector, 0.2f);
-	return Layers::Dense(dropoutFunction, outputClasses, device);
+	return Layers::Dense(dropoutFunction, outputClasses, CNTK::GlorotUniformInitializer(),
+		std::bind(Sigmoid, std::placeholders::_1, L""), true, 0.0f, device);
 }
 
 CNTK::TrainerPtr ModelTrainer::CreateTrainerForModel()
 {
 	// Create a trainer
+#ifdef LSTM_NETWORK
+	auto momentum = -1.0 * (GAME_LENGTH / std::log(0.9));
+	auto lossFunction = SquaredError(_model->Output(), _labels, L"Loss Function");
+	auto evalFunction = SquaredError(_model->Output(), _labels, L"Classification Error");
+	auto learningFunction = AdamLearner(_model->Parameters(), LearningRatePerSampleSchedule(0.01), MomentumAsTimeConstantSchedule(momentum), true);
+#else
 	auto lossFunction = CrossEntropyWithSoftmax(_model->Output(), _labels, L"Loss Function");
 	auto evalFunction = ClassificationError(_model->Output(), _labels, L"Classification Error");
-#ifdef LSTM_NETWORK
-	auto learningFunction = MomentumSGDLearner(_model->Parameters(), LearningRatePerSampleSchedule(0.01), MomentumAsTimeConstantSchedule(256), true);
-#else
 	auto learningFunction = SGDLearner(_model->Parameters(), LearningRatePerMinibatchSchedule(0.125));
 #endif
 	return CreateTrainer(_model, lossFunction, evalFunction, { learningFunction });
@@ -136,6 +140,12 @@ void ModelTrainer::Train()
 	vector<vector<float>> trainingData;
 	TrainingData *loader = new TrainingData();
 	loader->LoadFromFile(_dataFile, trainingData);
+
+	// The amount of training data necessary is proportional to the number of lookback moves
+	// Given that any one game has 9 possible combinations and all games are independent events,
+	// the number of possibilites is 9^(lookback_moves) = [ 1, 9, 81, 729, 6561, 59049, 531441, .... ]
+	// The best possible strategy will be to increase the amount of lookback as we get more training data.
+	for (lookbackMoves = 0; trainingData.size() > std::pow(9, lookbackMoves + 1) * TRAINING_FACTOR && lookbackMoves < GAME_LENGTH; lookbackMoves++);
 
 	CreateModel();
 	auto trainer = CreateTrainerForModel();
@@ -149,7 +159,7 @@ void ModelTrainer::Train()
 		// Carve off a batch of samples and create feature data
 		vector<vector<float>> inputData;
 		vector<vector<float>> labelData;
-		vector<float> previousMove = loader->EncodeDefaultFeature();
+		vector<float> previousMove = loader->EncodeDefaultFeature(lookbackMoves);
 		for (int j = trainingPosition; j < trainingPosition + GAME_LENGTH; j++)
 		{
 			inputData.push_back(previousMove);
@@ -159,8 +169,10 @@ void ModelTrainer::Train()
 			labelData.push_back(humanMove);
 
 			// Shift the previous move state for encoding the next move
-			previousMove.insert(previousMove.begin(), trainingData[j].begin(), trainingData[j].end());
-			previousMove.resize(LOOKBACK_MOVES * 7);
+			// We append the next move, then shift left and truncate....
+			previousMove.insert(previousMove.end(), trainingData[j].begin(), trainingData[j].end());
+			std::rotate(previousMove.begin(), previousMove.begin() + 7, previousMove.end());
+			previousMove.resize(lookbackMoves * 7);
 		}
 
 		// This is a simpler way to do value creation
