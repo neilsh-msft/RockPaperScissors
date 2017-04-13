@@ -135,9 +135,9 @@ int wmain(int argc, wchar_t**argv)
 	try
 	{
 		auto evalData = PrepareEvalData(input);
-		assert(evalData.Count() == 35);
+		assert(evalData.size() == 35);
 		auto output = InvokeEval(evalData, modelFilePath);
-		cout << output;
+		wcout << output;
 		return 0;
 	}
 	catch (std::exception exc)
