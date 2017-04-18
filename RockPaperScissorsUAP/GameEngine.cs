@@ -37,7 +37,7 @@ namespace RockPaperScissors
 
             try
             {
-                var processLauncherResult = await ProcessLauncher.RunToCompletionAsync(@"EvalCS.exe", this.modelFilePath, processLauncherOptions);
+                var processLauncherResult = await ProcessLauncher.RunToCompletionAsync(@"EvalCpp.exe", this.modelFilePath, processLauncherOptions);
                 using (var outStreamRedirect = standardOutput.GetInputStreamAt(0))
                 {
                     var size = standardOutput.Size;
@@ -57,7 +57,7 @@ namespace RockPaperScissors
             }
             catch (System.IO.FileNotFoundException)
             {
-                // EvalCS.exe not found, return random value
+                // EvalCpp.exe not found, return random value
                 var values = StringToHandResult.Keys.ToArray();
                 return values[this.rand.Next(values.Length)];
             }
