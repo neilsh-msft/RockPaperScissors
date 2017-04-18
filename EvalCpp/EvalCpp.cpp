@@ -64,7 +64,7 @@ vector<float> PrepareEvalData(string input)
 		int winLoss = winLossStates[humanMove + computerMove];
 		if (winLoss == 0) winLoss = 1;
 		if (winLoss == -1) winLoss = 0;
-		evalData.push_back(winLoss);
+		evalData.push_back((float)winLoss);
 	}
 
 	// Deal with padding if the input size was not large enough
@@ -100,7 +100,7 @@ std::wstring InvokeEval(vector<float> inputData, const wstring& modelFile)
 	outputVal->CopyVariableValueTo(model->Output(), outputBuffer);
 
 	auto probabilities = outputBuffer[0];
-	int indexOfMax = distance(probabilities.begin(), max_element(probabilities.begin(), probabilities.end()));
+	auto indexOfMax = distance(probabilities.begin(), max_element(probabilities.begin(), probabilities.end()));
 
 	vector<wstring> computerMoves = { L"P", L"S", L"R" };
 	return computerMoves[indexOfMax];
@@ -122,8 +122,8 @@ int wmain(int argc, wchar_t**argv)
 		return 1;
 	}
 
-#if false// real input
-	var input = GetInputBytes();
+#if true// real input
+	string input = GetInputBytes();
 #else // useful for debugging
 	//var input = "R R R R R R R R R R";
 	//var input = "S S S S S S S S S S";
