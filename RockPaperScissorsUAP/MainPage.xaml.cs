@@ -189,6 +189,12 @@ namespace RockPaperScissors
 
         private async Task Start()
         {
+/* testing eval invocation
+            var buff = Encoding.ASCII.GetBytes("aa");
+            var ge = new GameEngine("");
+            var move = await ge.LaunchEvalCommand(buff);
+            return;
+*/
             var modelFilePath = await DownloadModel();
             _gameEngine = new GameEngine(modelFilePath);
             _dispatcherTimer = new DispatcherTimer();
