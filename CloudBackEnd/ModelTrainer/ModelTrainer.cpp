@@ -12,20 +12,20 @@ using namespace CNTK;
 
 #ifndef MODELTRAINERLIB
 
-int TrainModel(const wchar_t* modelFilePath, const wchar_t* dataFilePath);
+int TrainModel(const wchar_t* dataFilePath, const wchar_t* modelFilePath);
 
 int wmain(int argc, wchar_t**argv)
 {
 	if (argc != 3)
 	{
-		cout << "Syntax: ModelTrainer.exe <modelfile.model> <gamefile.csv>\n";
+		cout << "Syntax: ModelTrainer.exe <gamefile.csv> <output-modelfile.model>\n";
 		return 1;
 	}
 
-	const wchar_t* modelFilePath = argv[1];
-	const wchar_t* dataFilePath = argv[2];
+	const wchar_t* dataFilePath = argv[1];
+	const wchar_t* modelFilePath = argv[2];
 
-	return TrainModel(modelFilePath, dataFilePath);
+	return TrainModel(dataFilePath, modelFilePath);
 }
 #endif
 
@@ -37,7 +37,7 @@ inline bool DoesFileExist(const wchar_t* fileName) {
 #ifdef MODELTRAINERLIB
 extern "C" __declspec(dllexport) 
 #endif
-int TrainModel(const wchar_t* modelFilePath, const wchar_t* dataFilePath)
+int TrainModel(const wchar_t* dataFilePath, const wchar_t* modelFilePath)
 {
 #ifdef MODELTRAINERLIB
 	OutputDebugString(L"Invoked TrainModel");
@@ -51,7 +51,7 @@ int TrainModel(const wchar_t* modelFilePath, const wchar_t* dataFilePath)
 			return 1;
 		}
 
-		ModelTrainer *trainer = new ModelTrainer(modelFilePath, dataFilePath);
+		ModelTrainer *trainer = new ModelTrainer(dataFilePath, modelFilePath);
 		trainer->Train();
 		delete(trainer);
 		return 0;
@@ -63,19 +63,10 @@ int TrainModel(const wchar_t* modelFilePath, const wchar_t* dataFilePath)
 	}
 }
 
-ModelTrainer::ModelTrainer(const wstring& modelFile, const wstring& dataFile)
+ModelTrainer::ModelTrainer(const wstring& dataFile, const wstring& modelFile)
 {
-	_modelFile = modelFile;
 	_dataFile = dataFile;
-}
-
-void ModelTrainer::LoadModel()
-{
-	// We could create the model from scratch, but its schema is already defined by the model file...
-	_model = Function::LoadModel(_modelFile);
-
-	_inputs = _model->Arguments()[0];
-	_labels = _model->Output();
+	_modelFile = modelFile;
 }
 
 void ModelTrainer::CreateModel()
