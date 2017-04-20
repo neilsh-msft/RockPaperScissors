@@ -77,7 +77,7 @@ namespace CloudBackEnd.Controllers
     public class GameUploadController : ApiController
     {
         [DllImport("ModelTrainerLib.dll")]
-        static extern int TrainModel([MarshalAs(UnmanagedType.LPWStr)]String modelFileName, [MarshalAs(UnmanagedType.LPWStr)]String gameFileName);
+        static extern int TrainModel([MarshalAs(UnmanagedType.LPWStr)]String gameFileName, [MarshalAs(UnmanagedType.LPWStr)]String modelFileName);
 
         readonly string accumulatedGameHistoryFileName = "AllGames.csv";
 
@@ -145,7 +145,7 @@ namespace CloudBackEnd.Controllers
 
                     lock (ModelFileLock.obj)
                     {
-                        trainingResult = TrainModel(modelFilePath, accumulatedGameHistoryFileNameFullPath);
+                        trainingResult = TrainModel(accumulatedGameHistoryFileNameFullPath, modelFilePath);
                         Debug.WriteLine(string.Format("Trainer reports error code={0}", trainingResult));
                     }
 
