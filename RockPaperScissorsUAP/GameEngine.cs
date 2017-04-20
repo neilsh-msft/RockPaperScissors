@@ -20,7 +20,7 @@ namespace RockPaperScissors
             this.rand = new Random(0);
         }
 
-        async Task<string> LaunchEvalCommand(byte[] buff)
+        public async Task<string> LaunchEvalCommand(byte[] buff)
         {
             var processLauncherOptions = new ProcessLauncherOptions();
             var standardOutput = new InMemoryRandomAccessStream();
@@ -41,11 +41,15 @@ namespace RockPaperScissors
                 using (var outStreamRedirect = standardOutput.GetInputStreamAt(0))
                 {
                     var size = standardOutput.Size;
+                    if(size==0)
+                    {
+                        throw new Exception(string.Format("Error reading output from EvalCpp"));
+                    }
                     using (var dataReader = new DataReader(outStreamRedirect))
                     {
                         var bytesLoaded = await dataReader.LoadAsync((uint)size);
                         var stringRead = dataReader.ReadString(bytesLoaded);
-                        var result = stringRead.Trim();
+                        var result = stringRead.Trim().Trim('\0');
                         if (processLauncherResult.ExitCode == 0)
                         {
                             return result;

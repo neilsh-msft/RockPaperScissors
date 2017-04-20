@@ -15,12 +15,11 @@ namespace CntkTraining
 	class ModelTrainer
 	{
 	public:
-		ModelTrainer(const std::wstring& modelFile, const std::wstring& dataFile);
+		ModelTrainer(const std::wstring& dataFile, const std::wstring& modelFile);
 
 		void Train();
 
-	protected:
-		void LoadModel();
+	private:
 		void CreateModel();
 		CNTK::TrainerPtr CreateTrainerForModel();
 		CNTK::FunctionPtr LSTMSequenceClassifierNet(CNTK::Variable input, size_t outputClasses, size_t hiddenDim, size_t cellDim, size_t lstmCells, 
