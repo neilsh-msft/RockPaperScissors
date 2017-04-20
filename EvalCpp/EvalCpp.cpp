@@ -43,14 +43,27 @@ string GetInputBytes()
 	return inputBytes;
 }
 
-vector<float> PrepareEvalData(string input)
+//
+// requiredSize is the required size in pairs of move. Example: "R P R S" is 2 pairs
+// The function will take the last requiredSize pairs from the input
+// and pad it up to requiredSize if the input is not large enough
+//
+vector<float> PrepareEvalData(string input, int requiredSize)
 {
 	vector<float> evalData;
 
 	istringstream iss(input);
-	deque<string> stringArray{ istream_iterator<string> {iss}, istream_iterator<string>{} };
+	deque<string> stringArray{ istream_iterator<string>{iss}, istream_iterator<string>{} };
 	size_t initialSize = stringArray.size();
 
+	// Pop off extra elements if input is too large
+	while (stringArray.size() > requiredSize * 2)
+	{
+		stringArray.pop_front();
+		stringArray.pop_front();
+	}
+
+	// Now populate the data
 	while (stringArray.size() > 0)
 	{
 		auto humanMove = stringArray.front(); stringArray.pop_front();
@@ -68,7 +81,7 @@ vector<float> PrepareEvalData(string input)
 	}
 
 	// Deal with padding if the input size was not large enough
-	for (int i = 0; i < 5 - initialSize / 2; ++i)
+	for (int i = 0; i < (int)(requiredSize - initialSize / 2); ++i)
 	{
 		for (int j = 0; j < 6; ++j) evalData.push_back(0);
 		evalData.push_back(1);
@@ -77,7 +90,7 @@ vector<float> PrepareEvalData(string input)
 	return evalData;
 }
 
-std::wstring InvokeEval(vector<float> inputData, const wstring& modelFile)
+std::wstring InvokeEval(const string& input, const wstring& modelFile)
 {
 	CNTK::DeviceDescriptor device = DeviceDescriptor::DefaultDevice();
 
@@ -86,6 +99,13 @@ std::wstring InvokeEval(vector<float> inputData, const wstring& modelFile)
 
 	// Create the inputs and outputs
 	auto inputVariable = model->Arguments()[0];
+	auto shape = inputVariable.Shape();
+	int depth = shape[0];
+
+	// Prepare input data using the depth from the input file
+	auto inputData = PrepareEvalData(input, depth);
+	assert(evalData.size() == 7 * depth);
+
 	ValuePtr inputValues = Value::Create<float>(inputVariable.Shape(), { inputData }, DeviceDescriptor::DefaultDevice(), true);
 	unordered_map<Variable, ValuePtr> inputs = { { inputVariable, inputValues } };
 
@@ -106,8 +126,20 @@ std::wstring InvokeEval(vector<float> inputData, const wstring& modelFile)
 	return computerMoves[indexOfMax];
 }
 
+void WriteToStdOut(const wstring& str)
+{
+	HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	DWORD byteWrittenCount = 0;
+	BOOL success = WriteFile(h, str.c_str(), str.size() * sizeof(wchar_t), &byteWrittenCount, NULL);
+	CloseHandle(h);
+}
+
 int wmain(int argc, wchar_t**argv)
 {
+//	WriteToStdOut(L"X");
+//	return 0;
+
 	if (argc != 2)
 	{
 		cout << "Syntax: EvalCpp.exe <modelfile.model>\n";
@@ -127,22 +159,21 @@ int wmain(int argc, wchar_t**argv)
 #else // useful for debugging
 	//var input = "R R R R R R R R R R";
 	//var input = "S S S S S S S S S S";
-	//var input = "P P P P P P P P P P";
+	// string input = "S S P P P P P P P P";
 	string input = "R P R S P P S P R P";
-	//var input = "";
 #endif
 
 	try
 	{
-		auto evalData = PrepareEvalData(input);
-		assert(evalData.size() == 35);
-		auto output = InvokeEval(evalData, modelFilePath);
-		wcout << output;
+		auto output = InvokeEval(input, modelFilePath);
+		WriteToStdOut(output);
 		return 0;
 	}
 	catch (std::exception exc)
 	{
-		cout << exc.what();
+		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+		std::wstring wide = converter.from_bytes(exc.what());
+		WriteToStdOut(wide);
 		return 1;
 	}
 }

@@ -13,7 +13,11 @@
 #include <functional>
 #include <iostream>
 #include <fstream>
+#include <locale>
+#include <codecvt>
 
+#define NOMINMAX
+#include <Windows.h>
 
 
 // TODO: reference additional headers your program requires here
