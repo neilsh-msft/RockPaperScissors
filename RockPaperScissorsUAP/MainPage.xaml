@@ -22,6 +22,7 @@
         </StackPanel>
 
         <Button x:Name="button" Content="Play" HorizontalAlignment="Left" Height="60" Margin="311,150,0,0" VerticalAlignment="Top" Width="219" FontSize="32" Click="button_Click"/>
+        <Button x:Name="upload" Content="Upload" HorizontalAlignment="Left" Height="60" Margin="71,150,0,0" VerticalAlignment="Top" Width="219" FontSize="32" Click="upload_Click"/>
         <CaptureElement Name="PreviewControl" Stretch="Uniform" Margin="50,270,0,0" Width="200" Height="180" HorizontalAlignment="Left" VerticalAlignment="Top" />
         <Image x:Name="mask1" HorizontalAlignment="Left" Height="180" Margin="260,270,0,0" VerticalAlignment="Top" Width="200"/>
         <Image x:Name="mask2" HorizontalAlignment="Left" Height="180" Margin="470,270,0,0" VerticalAlignment="Top" Width="200"/>
