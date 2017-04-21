@@ -57,6 +57,8 @@ namespace RockPaperScissors
         private int _slider2 = 50;
         DispatcherTimer _dispatcherTimer;
         int _countDown = 0;
+        bool forceUpload = false;
+        bool uploading = false;
         GameEngine _gameEngine;
         CloudConfig _cloudConfig;
 
@@ -118,6 +120,12 @@ namespace RockPaperScissors
                 WebAPITrainUri = string.Empty
             };
 #endif
+
+#if RUN_CONTINUOUS
+            // Hide the 'play' button
+            button.Visibility = Visibility.Collapsed;
+#endif
+
             HandResultToImage[HandResult.Paper] = new BitmapImage(new Uri("ms-appx:///Assets/Paper.png"));
             HandResultToImage[HandResult.Rock] = new BitmapImage(new Uri("ms-appx:///Assets/Rock.png"));
             HandResultToImage[HandResult.Scissors] = new BitmapImage(new Uri("ms-appx:///Assets/Scissors.png"));
@@ -185,6 +193,10 @@ namespace RockPaperScissors
                     }
                 }
             }
+
+            uploading = false;
+            upload.IsEnabled = true;
+            forceUpload = false;
         }
 
         private async Task Start()
@@ -380,22 +392,6 @@ namespace RockPaperScissors
 
                             Debug.WriteLine(string.Format("--> {0} : {1}", humanMove, computerMove));
 
-                            // Every 20 moves, submit the history to the cloud for training
-                            if(humanMoves.Count() >= 20)
-                            {
-                                // Copy moves to temporary arrays and then clear the tracking history
-                                var humanMovesCopy = new HandResult[humanMoves.Count()];
-                                humanMoves.CopyTo(humanMovesCopy);
-
-                                var computerMovesCopy = new HandResult[humanMoves.Count()];
-                                humanMoves.CopyTo(computerMovesCopy);
-
-                                var submission = this.SubmitLatestGameToCloud(computerMovesCopy, computerMovesCopy);
-
-                                // Do not await submission, let it proceed asynchronously but clear the history
-                                humanMoves.Clear();
-                                computerMoves.Clear();
-                            }
                         }
                     }
                     else
@@ -406,6 +402,26 @@ namespace RockPaperScissors
 
                     button.IsEnabled = true;
                     button.Content = "Play";
+                }
+
+                // Every 20 moves, submit the history to the cloud for training
+                if (!uploading && ((humanMoves.Count() >= 20) || forceUpload))
+                {
+                    uploading = true;
+                    upload.IsEnabled = false;
+
+                    // Copy moves to temporary arrays and then clear the tracking history
+                    var humanMovesCopy = new HandResult[humanMoves.Count()];
+                    humanMoves.CopyTo(humanMovesCopy);
+
+                    var computerMovesCopy = new HandResult[humanMoves.Count()];
+                    humanMoves.CopyTo(computerMovesCopy);
+
+                    var submission = this.SubmitLatestGameToCloud(computerMovesCopy, computerMovesCopy);
+
+                    // Do not await submission, let it proceed asynchronously but clear the history
+                    humanMoves.Clear();
+                    computerMoves.Clear();
                 }
 
                 lastHandResult = humanMove;
@@ -507,6 +523,12 @@ namespace RockPaperScissors
                 _dispatcherTimer.Start();
                 button.IsEnabled = false;
             }
+        }
+
+        private async void upload_Click(object sender, RoutedEventArgs e)
+        {
+            upload.IsEnabled = false;
+            forceUpload = true;
         }
 
         private void slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
