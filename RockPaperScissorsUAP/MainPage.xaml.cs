@@ -539,5 +539,15 @@ namespace RockPaperScissors
         {
             _slider2 = (int)slider2.Value;
         }
+
+        private void previewSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            PreviewControl.Visibility = previewSwitch.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void maskSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            mask1.Visibility = maskSwitch.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 }
