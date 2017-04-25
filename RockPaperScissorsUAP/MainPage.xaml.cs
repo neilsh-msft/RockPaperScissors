@@ -57,6 +57,8 @@ namespace RockPaperScissors
         private int _slider2 = 50;
         DispatcherTimer _dispatcherTimer;
         int _countDown = 0;
+        bool uploading = false;
+        bool _startCapture = false;
         GameEngine _gameEngine;
         CloudConfig _cloudConfig;
 
@@ -118,6 +120,14 @@ namespace RockPaperScissors
                 WebAPITrainUri = string.Empty
             };
 #endif
+
+#if RUN_CONTINUOUS
+            continuousSwitch.IsOn = true;
+#endif
+
+            // Hide the 'play' button if running contiously
+            button.Visibility = continuousSwitch.IsOn ? Visibility.Collapsed : Visibility.Visible;
+
             HandResultToImage[HandResult.Paper] = new BitmapImage(new Uri("ms-appx:///Assets/Paper.png"));
             HandResultToImage[HandResult.Rock] = new BitmapImage(new Uri("ms-appx:///Assets/Rock.png"));
             HandResultToImage[HandResult.Scissors] = new BitmapImage(new Uri("ms-appx:///Assets/Scissors.png"));
@@ -185,6 +195,9 @@ namespace RockPaperScissors
                     }
                 }
             }
+
+            uploading = false;
+            upload.IsEnabled = true;
         }
 
         private async Task Start()
@@ -199,15 +212,22 @@ namespace RockPaperScissors
             _gameEngine = new GameEngine(modelFilePath);
             _dispatcherTimer = new DispatcherTimer();
             _dispatcherTimer.Tick += dispatcherTimer_Tick;
+            _dispatcherTimer.Interval = TimeSpan.FromMilliseconds(200);
+
             capture.Source = new SoftwareBitmapSource();
             mask1.Source = new SoftwareBitmapSource();
             mask2.Source = new SoftwareBitmapSource();
             mask3.Source = new SoftwareBitmapSource();
             mask4.Source = new SoftwareBitmapSource();
-#if RUN_CONTINUOUS
-            // Just always run for now.
-            button_Click(null, null);
-#endif
+
+            // start video capture
+            _startCapture = await startCapture();
+
+            if (continuousSwitch.IsOn)
+            {
+                // Just always run for now.
+                button_Click(null, null);
+            }
         }
 
         private void MediaCapture_Failed(MediaCapture sender, MediaCaptureFailedEventArgs errorEventArgs)
@@ -218,7 +238,12 @@ namespace RockPaperScissors
         private async void dispatcherTimer_Tick(object sender, object e)
         {
             _countDown -= 200;
-//            button.Content = Math.Ceiling(_countDown / 1000.0).ToString();
+
+            if (!continuousSwitch.IsOn)
+            {
+                // Show timer preview
+                button.Content = Math.Ceiling(_countDown / 1000.0).ToString();
+            }
 
             if (_countDown <= -200)
             {
@@ -226,9 +251,9 @@ namespace RockPaperScissors
 
                 // Prepare and capture photo
                 if (!_mediaCapture.VideoDeviceController.Exposure.TrySetValue(
-                    _mediaCapture.VideoDeviceController.Exposure.Capabilities.Min +
-                    (_mediaCapture.VideoDeviceController.Exposure.Capabilities.Max -
-                     _mediaCapture.VideoDeviceController.Exposure.Capabilities.Min) * _slider / 100))
+                _mediaCapture.VideoDeviceController.Exposure.Capabilities.Min +
+                (_mediaCapture.VideoDeviceController.Exposure.Capabilities.Max -
+                    _mediaCapture.VideoDeviceController.Exposure.Capabilities.Min) * _slider / 100))
                 {
                     slider.IsEnabled = false;
                 }
@@ -237,7 +262,7 @@ namespace RockPaperScissors
                     slider.IsEnabled = true;
                 }
 
-#if false
+    #if false
                 if (_mediaCapture.VideoDeviceController.WhiteBalanceControl.Supported)
                 {
                     var preset = _mediaCapture.VideoDeviceController.WhiteBalanceControl.Preset;
@@ -250,14 +275,14 @@ namespace RockPaperScissors
                     await _mediaCapture.VideoDeviceController.WhiteBalanceControl.SetValueAsync(
         _mediaCapture.VideoDeviceController.WhiteBalanceControl.Min +
         (_mediaCapture.VideoDeviceController.WhiteBalanceControl.Max -
-         _mediaCapture.VideoDeviceController.WhiteBalanceControl.Min) * (uint)_slider2 / 100);
+            _mediaCapture.VideoDeviceController.WhiteBalanceControl.Min) * (uint)_slider2 / 100);
                 }
                 else
                 {
                     if (!_mediaCapture.VideoDeviceController.WhiteBalance.TrySetValue(
         _mediaCapture.VideoDeviceController.WhiteBalance.Capabilities.Min +
         (_mediaCapture.VideoDeviceController.WhiteBalance.Capabilities.Max -
-         _mediaCapture.VideoDeviceController.WhiteBalance.Capabilities.Min) * _slider2 / 100))
+            _mediaCapture.VideoDeviceController.WhiteBalance.Capabilities.Min) * _slider2 / 100))
                     {
                         slider2.IsEnabled = false;
                     }
@@ -266,7 +291,7 @@ namespace RockPaperScissors
                         slider2.IsEnabled = true;
                     }
                 }
-#endif
+    #endif
                 var lowLagCapture = await _mediaCapture.PrepareLowLagPhotoCaptureAsync(ImageEncodingProperties.CreateUncompressed(MediaPixelFormat.Bgra8));
 
                 var capturedPhoto = await lowLagCapture.CaptureAsync();
@@ -337,6 +362,14 @@ namespace RockPaperScissors
                 // Determine winner of match
                 if (humanMove != HandResult.None)
                 {
+                    if (!continuousSwitch.IsOn)
+                    {
+                        // coutdown mode, force evaluation of image
+                        handResultCount = requiredCount;
+                        handInRange = true;
+                        lastHandResult = humanMove;
+                    }
+
                     if (humanMove == lastHandResult)
                     {
                         handResultCount++;
@@ -380,22 +413,6 @@ namespace RockPaperScissors
 
                             Debug.WriteLine(string.Format("--> {0} : {1}", humanMove, computerMove));
 
-                            // Every 20 moves, submit the history to the cloud for training
-                            if(humanMoves.Count() >= 20)
-                            {
-                                // Copy moves to temporary arrays and then clear the tracking history
-                                var humanMovesCopy = new HandResult[humanMoves.Count()];
-                                humanMoves.CopyTo(humanMovesCopy);
-
-                                var computerMovesCopy = new HandResult[humanMoves.Count()];
-                                humanMoves.CopyTo(computerMovesCopy);
-
-                                var submission = this.SubmitLatestGameToCloud(computerMovesCopy, computerMovesCopy);
-
-                                // Do not await submission, let it proceed asynchronously but clear the history
-                                humanMoves.Clear();
-                                computerMoves.Clear();
-                            }
                         }
                     }
                     else
@@ -403,15 +420,45 @@ namespace RockPaperScissors
                         // Reset the counter. The gestures we've seen so far weren't consistent enough to accept
                         handResultCount = 0;
                     }
-
-                    button.IsEnabled = true;
-                    button.Content = "Play";
                 }
 
+                // Every 20 moves, submit the history to the cloud for training
+                if (humanMoves.Count() >= 20)
+                {
+                    UploadGameDataAndClearHistory();
+                }
+
+                // re-enable play button after evaluating match
                 lastHandResult = humanMove;
-#if RUN_CONTINUOUS
-                _dispatcherTimer.Start();
-#endif
+                button.IsEnabled = true;
+                button.Content = "Play";
+
+                if (continuousSwitch.IsOn)
+                {
+                    _dispatcherTimer.Start();
+                }
+            }
+        }
+
+        void UploadGameDataAndClearHistory()
+        {
+            if (!uploading)
+            {
+                uploading = true;
+                upload.IsEnabled = false;
+
+                // Copy moves to temporary arrays and then clear the tracking history
+                var humanMovesCopy = new HandResult[humanMoves.Count()];
+                humanMoves.CopyTo(humanMovesCopy);
+
+                var computerMovesCopy = new HandResult[humanMoves.Count()];
+                humanMoves.CopyTo(computerMovesCopy);
+
+                var submission = this.SubmitLatestGameToCloud(computerMovesCopy, computerMovesCopy);
+
+                // Do not await submission, let it proceed asynchronously but clear the history
+                humanMoves.Clear();
+                computerMoves.Clear();
             }
         }
 
@@ -498,15 +545,23 @@ namespace RockPaperScissors
 
         private async void button_Click(object sender, RoutedEventArgs e)
         {
-            if (await startCapture())
+            if (!_startCapture)
+            {
+                _startCapture = await startCapture();
+            }
+
+            if (_startCapture)
             {
                 // start timer.  Period = 3 seconds, subtract 1 every seconds, capture at -200ms.
-                _countDown = 3000;
-                _dispatcherTimer.Interval = TimeSpan.FromMilliseconds(200);
-
+                _countDown = continuousSwitch.IsOn ? -200 : 3000;
                 _dispatcherTimer.Start();
                 button.IsEnabled = false;
             }
+        }
+
+        private void upload_Click(object sender, RoutedEventArgs e)
+        {
+            UploadGameDataAndClearHistory();
         }
 
         private void slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -516,6 +571,26 @@ namespace RockPaperScissors
         private void slider2_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
             _slider2 = (int)slider2.Value;
+        }
+
+        private void previewSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            PreviewControl.Visibility = previewSwitch.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void maskSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            mask1.Visibility = maskSwitch.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void continuousSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            // toggle Play button and start dispatcher timer if turned on
+            button.Visibility = continuousSwitch.IsOn ? Visibility.Collapsed : Visibility.Visible;
+            if (button.IsEnabled && continuousSwitch.IsOn && (_dispatcherTimer != null))
+            {
+                button_Click(null, null);
+            }
         }
     }
 }
