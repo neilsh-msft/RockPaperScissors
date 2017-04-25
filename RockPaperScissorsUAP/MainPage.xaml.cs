@@ -57,7 +57,6 @@ namespace RockPaperScissors
         private int _slider2 = 50;
         DispatcherTimer _dispatcherTimer;
         int _countDown = 0;
-        bool forceUpload = false;
         bool uploading = false;
         bool _startCapture = false;
         GameEngine _gameEngine;
@@ -199,7 +198,6 @@ namespace RockPaperScissors
 
             uploading = false;
             upload.IsEnabled = true;
-            forceUpload = false;
         }
 
         private async Task Start()
@@ -425,23 +423,9 @@ namespace RockPaperScissors
                 }
 
                 // Every 20 moves, submit the history to the cloud for training
-                if (!uploading && ((humanMoves.Count() >= 20) || forceUpload))
+                if (humanMoves.Count() >= 20)
                 {
-                    uploading = true;
-                    upload.IsEnabled = false;
-
-                    // Copy moves to temporary arrays and then clear the tracking history
-                    var humanMovesCopy = new HandResult[humanMoves.Count()];
-                    humanMoves.CopyTo(humanMovesCopy);
-
-                    var computerMovesCopy = new HandResult[humanMoves.Count()];
-                    humanMoves.CopyTo(computerMovesCopy);
-
-                    var submission = this.SubmitLatestGameToCloud(computerMovesCopy, computerMovesCopy);
-
-                    // Do not await submission, let it proceed asynchronously but clear the history
-                    humanMoves.Clear();
-                    computerMoves.Clear();
+                    UploadGameDataAndClearHistory();
                 }
 
                 // re-enable play button after evaluating match
@@ -453,6 +437,28 @@ namespace RockPaperScissors
                 {
                     _dispatcherTimer.Start();
                 }
+            }
+        }
+
+        void UploadGameDataAndClearHistory()
+        {
+            if (!uploading)
+            {
+                uploading = true;
+                upload.IsEnabled = false;
+
+                // Copy moves to temporary arrays and then clear the tracking history
+                var humanMovesCopy = new HandResult[humanMoves.Count()];
+                humanMoves.CopyTo(humanMovesCopy);
+
+                var computerMovesCopy = new HandResult[humanMoves.Count()];
+                humanMoves.CopyTo(computerMovesCopy);
+
+                var submission = this.SubmitLatestGameToCloud(computerMovesCopy, computerMovesCopy);
+
+                // Do not await submission, let it proceed asynchronously but clear the history
+                humanMoves.Clear();
+                computerMoves.Clear();
             }
         }
 
@@ -555,8 +561,7 @@ namespace RockPaperScissors
 
         private void upload_Click(object sender, RoutedEventArgs e)
         {
-            upload.IsEnabled = false;
-            forceUpload = true;
+            UploadGameDataAndClearHistory();
         }
 
         private void slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
