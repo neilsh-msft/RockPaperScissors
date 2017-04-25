@@ -144,50 +144,115 @@ void ModelTrainer::Train()
 
 	int minibatchSize = GAME_LENGTH;
 	int numMinibatches = trainingData.size() / minibatchSize;
+	int validateBatches = int(numMinibatches * 0.2);
+	int testBatches = int(numMinibatches * 0.1);
+#if (TRAIN_ONLY == 1)
+	int trainBatches = numMinibatches;
+#else
+	int trainBatches = numMinibatches - validateBatches - testBatches;
+#endif
 	int outputFrequency = 10;
+	double averageTrainingError = 0.0;
+	int predictedWins = 0, predictedGames = 0;
+	auto device = DeviceDescriptor::UseDefaultDevice();
 
 	int trainingPosition = 0;
 	for (int i = 0; i < numMinibatches; i++)
 	{
-		// Carve off a batch of samples and create feature data
 		vector<vector<float>> inputData;
 		vector<vector<float>> labelData;
-		vector<float> previousMove = loader->EncodeDefaultFeature(1);
-		for (int j = trainingPosition; j < trainingPosition + GAME_LENGTH; j++)
+		EncodeBatch(loader, trainingPosition, trainingData, inputData, labelData);
+
+		// Do the training
+		if (i < trainBatches)
 		{
-			inputData.push_back(previousMove);
-			
-			// Get the subset of the current training data that reflects the human move
-			auto humanMove = vector<float>(trainingData[j].begin(), trainingData[j].begin() + 3);
-			labelData.push_back(humanMove);
+			// This is a simpler way to do value creation
+			ValuePtr inputValues = Value::Create<float>(_inputs.Shape(), inputData, device, true);
+			ValuePtr labelValues = Value::Create<float>(_labels.Shape(), labelData, device, true);
+			std::unordered_map<Variable, ValuePtr> arguments = { { _inputs, inputValues },{ _labels, labelValues } };
 
-			// Shift the previous move state for encoding the next move
-			// We append the next move, then shift left and truncate....
-			previousMove.insert(previousMove.end(), trainingData[j].begin(), trainingData[j].end());
+			trainer->TrainMinibatch(arguments, device);
 
-			if ((j + 1) % GAME_LENGTH >= lookbackMoves)
+			// TODO: Output some progress data....
+			if (i % outputFrequency == 0)
 			{
-				std::rotate(previousMove.begin(), previousMove.begin() + 7, previousMove.end());
-				previousMove.resize(lookbackMoves * 7);
+				cout << "Minibatch: " << i << ", Loss: " << trainer->PreviousMinibatchLossAverage() << ", Error: " << trainer->PreviousMinibatchEvaluationAverage() * 100 << "%\n";
 			}
 		}
-
-		// This is a simpler way to do value creation
-		ValuePtr inputValues = Value::Create<float>(_inputs.Shape(), inputData, DeviceDescriptor::UseDefaultDevice(), true);
-		ValuePtr labelValues = Value::Create<float>(_labels.Shape(), labelData, DeviceDescriptor::UseDefaultDevice(), true);
-
-		std::unordered_map<Variable, ValuePtr> arguments = { { _inputs, inputValues },{ _labels, labelValues } };
-		trainer->TrainMinibatch(arguments, CNTK::DeviceDescriptor::UseDefaultDevice());
-		
-		// TODO: Output some progress data....
-		if (i % outputFrequency == 0)
+		else if (i < trainBatches + testBatches)
 		{
-			cout << "Minibatch: " << i << ", Loss: " << trainer->PreviousMinibatchLossAverage() << ", Error: " << trainer->PreviousMinibatchEvaluationAverage() * 100 << "%\n";
+			// This is a simpler way to do value creation
+			ValuePtr inputValues = Value::Create<float>(_inputs.Shape(), inputData, device, true);
+			ValuePtr labelValues = Value::Create<float>(_labels.Shape(), labelData, device, true);
+			std::unordered_map<Variable, ValuePtr> arguments = { { _inputs, inputValues },{ _labels, labelValues } };
+
+			averageTrainingError += trainer->TestMinibatch(arguments, device);
+		}
+		else
+		{
+			auto model = trainer->Model();
+
+			// Iterate through the games in the batch
+			for (int k = 0; k < GAME_LENGTH; k++)
+			{
+				ValuePtr inputValues = Value::Create<float>(_inputs.Shape(), { inputData[k] }, device, true);
+				unordered_map<Variable, ValuePtr> inputs = { { _inputs, inputValues } };
+
+				auto labels = model->Output();
+				unordered_map<Variable, ValuePtr> outputs = { { labels, nullptr } };
+
+				// TODO: This is missing a softmax layer on the output
+				model->Evaluate(inputs, outputs, device);
+
+				vector<vector<float>> outputBuffer;
+				auto outputVal = outputs[model->Output()];
+				outputVal->CopyVariableValueTo(model->Output(), outputBuffer);
+
+				auto probabilities = outputBuffer[0];
+				auto indexOfMax = distance(probabilities.begin(), max_element(probabilities.begin(), probabilities.end()));
+
+				if (labelData[k][indexOfMax] == 1.0)
+				{
+					predictedWins++;
+				}
+
+				predictedGames++;
+			}
 		}
 
 		trainingPosition += minibatchSize;
 	}
 
+#if (TRAIN_ONLY != 1)
+	cout << "Mean squared testing error: " << (averageTrainingError / testBatches) * 100.0 << "%\n";
+	cout << "Evaluation predictions: " << predictedWins << " / " << predictedGames << " (" << ((double)predictedWins / (double)predictedGames) * 100.0 << "%)";
+#endif
+
 	trainer->Model()->SaveModel(_modelFile);
 	wcout << L"New model saved to " << _modelFile;
+}
+
+void ModelTrainer::EncodeBatch(TrainingData *loader, int trainingPosition, vector<vector<float>> trainingData, 
+	vector<vector<float>>& features, vector<vector<float>>& labels)
+{
+	// Carve off a batch of samples and create feature data
+	vector<float> previousMove = loader->EncodeDefaultFeature(1);
+	for (int j = trainingPosition; j < trainingPosition + GAME_LENGTH; j++)
+	{
+		features.push_back(previousMove);
+
+		// Get the subset of the current training data that reflects the human move
+		auto humanMove = vector<float>(trainingData[j].begin(), trainingData[j].begin() + 3);
+		labels.push_back(humanMove);
+
+		// Shift the previous move state for encoding the next move
+		// We append the next move, then shift left and truncate....
+		previousMove.insert(previousMove.end(), trainingData[j].begin(), trainingData[j].end());
+
+		if ((j + 1) % GAME_LENGTH >= lookbackMoves)
+		{
+			std::rotate(previousMove.begin(), previousMove.begin() + 7, previousMove.end());
+			previousMove.resize(lookbackMoves * 7);
+		}
+	}
 }
