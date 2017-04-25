@@ -74,8 +74,8 @@ void ModelTrainer::CreateModel()
 	// Define the model from scratch for training
 	size_t inputDim = NUMBER_OF_FEATURES;
 	size_t numOutputClasses = 3;
-	size_t cellDim = LSTM_CELL_DIM;
-	size_t hiddenLayersDim = HIDDEN_LAYERS_DIM;
+	size_t cellDim = inputDim;  // This follows the Python Library default
+	size_t hiddenLayersDim = numOutputClasses; // This follows the Python Library default
 	CNTK::DeviceDescriptor device = DeviceDescriptor::UseDefaultDevice();
 
 	_inputs = InputVariable({ inputDim }, false, CNTK::DataType::Float, L"Feature Vector");
@@ -201,9 +201,9 @@ void ModelTrainer::Train()
 				auto labels = model->Output();
 				unordered_map<Variable, ValuePtr> outputs = { { labels, nullptr } };
 
-				// TODO: This is missing a softmax layer on the output
+				// TODO: The Python model uses softmax on the output
 				model->Evaluate(inputs, outputs, device);
-
+				
 				vector<vector<float>> outputBuffer;
 				auto outputVal = outputs[model->Output()];
 				outputVal->CopyVariableValueTo(model->Output(), outputBuffer);
