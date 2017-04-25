@@ -5,26 +5,25 @@ import numpy as np
 import time
 import math
 import csv
+import copy
 
-from cntk import input_variable, Trainer
+from cntk import input_variable, Trainer, squared_error, classification_error
 from cntk.initializer import glorot_uniform, he_normal
 from cntk.layers import Recurrence, LSTM, Dropout, Dense
-from cntk.learner import learning_rate_schedule, UnitType, momentum_as_time_constant_schedule, sgd, adam_sgd
+from cntk.learners import learning_rate_schedule, UnitType, momentum_as_time_constant_schedule, sgd, fsadagrad
 from cntk.ops import *
 from cntk.ops.sequence import last as Last
-from cntk.utils import get_train_eval_criterion, get_train_loss
+from cntk.ops.sequence import input as SequenceInput
 
 # Read in the RPS data
-
-script_directory = "."
-
+script_directory = os.path.dirname(sys.argv[0])
 data = []
 with open(os.path.join(script_directory, "rps.csv"), 'r') as csvfile:
   recordReader = csv.DictReader(csvfile, fieldnames=['HM','CM','WLD'])
   for row in recordReader:
-    if row['WLD'] == "0": row['WLD'] = np.float32(0.0)
+    if row['WLD'] == "0": row['WLD'] = np.float32(1.0)
     if row['WLD'] == "1": row['WLD'] = np.float32(1.0)
-    if row['WLD'] == "-1": row['WLD'] = np.float32(-1.0)
+    if row['WLD'] == "-1": row['WLD'] = np.float32(0.0)
     data.append(row)
 
 # We will play by looking back at the previous n moves
@@ -34,6 +33,7 @@ with open(os.path.join(script_directory, "rps.csv"), 'r') as csvfile:
 # The best possible strategy will be to increase the amount of lookback as we get more training data.
 lookbackMoves = 0
 trainingFactor = 3
+numberOfFeatures = 7 # 7 if we add the win/loss feature, 6 otherwise
 gameLength = 20
 while len(data) > math.pow(9, lookbackMoves + 1) * trainingFactor and lookbackMoves < gameLength:
   lookbackMoves += 1
@@ -48,34 +48,37 @@ def encodeLabel(move):
   scissors = np.float32(1.0) if move == 'S' else np.float32(0.0)
   return [rock, paper, scissors]
   
-def encodeFeature(hm, cm, wld):
-  return np.r_[encodeLabel(hm), encodeLabel(cm), wld].tolist()
-  
+def encodeFeature(hm, cm, wld): 
+  return np.float32(np.r_[encodeLabel(hm), encodeLabel(cm), wld])
+ 
 def defaultMove():
-  return [0, 0, 0]
+  return encodeFeature('X', 'X', np.float32(0.0))
   
 def getMoveIndex(move):
   return np.argmax(move)
-  
+
 moveNumber = 0
-previousMoves = np.array([encodeFeature('X', 'X', 0) for x in range(lookbackMoves)]).flatten().tolist()
+previousMoves = []
+previousMoves.append(defaultMove())
 training_features = []
 training_labels = []
+
 for row in data:
-  training_features.append(previousMoves)
+  training_features.append(copy.deepcopy(previousMoves))
   training_labels.append(encodeLabel(row['HM']))
   moveNumber += 1
-  if moveNumber % 20 == 0:
-    moveNumber = 0
-    previousMoves = np.array([encodeFeature('X', 'X', 0) for x in range(lookbackMoves)]).flatten().tolist()
+  if moveNumber % gameLength == 0:
+    previousMoves = []
+    previousMoves.append(defaultMove())
   else:
-    previousMoves = np.append(np.resize(np.roll(previousMoves, -7), (1, 7 * (lookbackMoves - 1))), encodeFeature(row['HM'], row['CM'], row['WLD'])).tolist()
-
-training_features = np.array(training_features, dtype="float32")
-training_labels = np.array(training_labels, dtype="float32")
+    if moveNumber % gameLength < lookbackMoves:
+      previousMoves.append(encodeFeature(row['HM'], row['CM'], row['WLD']))
+    else:
+      previousMoves = np.float32(np.resize(np.roll(previousMoves, -1 * numberOfFeatures), (lookbackMoves - 1, numberOfFeatures)))
+      previousMoves = np.resize(np.append(previousMoves, encodeFeature(row['HM'], row['CM'], row['WLD'])), (lookbackMoves, numberOfFeatures))
 
 # LSTM Network
-input_dim = 7 * lookbackMoves
+input_dim = numberOfFeatures * lookbackMoves
 cell_dim = 64
 hidden_dim = 128
 num_output_classes = 3
@@ -83,8 +86,8 @@ minibatch_size = gameLength
 
 # Defines the LSTM model for classifying sequences
 def LSTM_sequence_classifer_net(input, output_classes):
-  model = Recurrence(LSTM(lookbackMoves))(input)
-  model = Last(model)
+  model = Recurrence(LSTM(input_dim, enable_self_stabilization=True))(input)
+  model = Last(model) # Note this is semantically equivalent to "Fold" (take only the output of the last sequence)
   model = Dropout(0.2)(model)
   model = Dense(output_classes)(model)
   return model
@@ -94,37 +97,33 @@ def print_training_progress(trainer, mb, frequency, verbose=1):
     training_loss = "NA"
     eval_error = "NA"
     if mb%frequency == 0:
-        training_loss = get_train_loss(trainer)
-        eval_error = get_train_eval_criterion(trainer)
+        training_loss = trainer.previous_minibatch_loss_average
+        eval_error = trainer.previous_minibatch_evaluation_average
         if verbose: 
             print ("Minibatch: {0}, Loss: {1:.4f}, Error: {2:.2f}%".format(mb + 1, training_loss, eval_error*100))
     return mb, training_loss, eval_error
 
-inputs = input_variable(shape = input_dim, is_sparse = False)
-label = input_variable(num_output_classes, dynamic_axes=[Axis.default_batch_axis()])
-
+inputs = SequenceInput(numberOfFeatures) #shape = input_dim, is_sparse = True)
 classifier_output = LSTM_sequence_classifer_net(inputs, num_output_classes)
+label = input_variable(shape = num_output_classes, is_sparse = False, dynamic_axes=classifier_output.dynamic_axes)
 
 loss = squared_error(classifier_output, label)
-label_error = squared_error(classifier_output, label)
-learner = adam_sgd(classifier_output.parameters, learning_rate_schedule(0.01, UnitType.minibatch), momentum_as_time_constant_schedule(minibatch_size / -math.log(0.9)))
+label_error = classification_error(classifier_output, label)
+learner = fsadagrad(classifier_output.parameters, learning_rate_schedule(0.01, UnitType.minibatch), momentum_as_time_constant_schedule(minibatch_size / -math.log(0.9)))
 
 trainer = Trainer(classifier_output, (loss, label_error), [learner])
 
 # Initialize the parameters for the trainer, we will train, validate and test
 # in minibatches corresponding to the 20 game definition
-minibatch_size = gameLength
 num_minibatches = len(training_features) // minibatch_size
-validate_mb = int(num_minibatches * 0.1)
+validate_mb = int(num_minibatches * 0.2)
 test_mb = int(num_minibatches * 0.1)
 train_mb = num_minibatches - validate_mb - test_mb
 
-#trainf, validatef, testf = training_features[:train_mb], training_features[train_mb:validate_mb], training_features[test_mb:]
-#trainl, validatel, testl = training_labels[:train_mb], training_labels[train_mb:validate_mb], training_labels[test_mb:]
-tf = np.split(training_features, num_minibatches)
-tl = np.split(training_labels, num_minibatches)
+trainf, testf, validatef = training_features[:train_mb*gameLength], training_features[train_mb*gameLength:(train_mb + test_mb)*gameLength], training_features[validate_mb*gameLength:]
+trainl, testl, validatel = training_labels[:train_mb*gameLength], training_labels[train_mb*gameLength:(train_mb + test_mb)*gameLength], training_labels[validate_mb*gameLength:]
 
-print("Number of mini batches = train:{0} validate:{1} test:{2}".format(train_mb, validate_mb, test_mb))
+print("Number of mini batches = train:{0} test:{1} validate:{2}".format(train_mb, test_mb, validate_mb))
 
 # Run the trainer on and perform model training
 training_progress_output_freq = 10
@@ -132,10 +131,8 @@ loss_summary = []
 train_start = time.time()
 
 for i in range(0, train_mb):
-  #features = trainf[i*gameLength:(i+1)*gameLength]
-  #labels = trainl[i*gameLength:(i+1)*gameLength]
-  features = np.ascontiguousarray(tf[i%num_minibatches])
-  labels = np.ascontiguousarray(tl[i%num_minibatches])
+  features = trainf[i*gameLength:(i+1)*gameLength]
+  labels = trainl[i*gameLength:(i+1)*gameLength]
 
   # Specify the mapping of input variables in the model to actual minibatch data to be trained with
   trainer.train_minibatch({inputs : features, label : labels})
@@ -148,9 +145,9 @@ plt.show()
 
 # Testing
 avg_error = 0.0
-for i in range(train_mb, train_mb + test_mb):
-  features = np.ascontiguousarray(tf[i%num_minibatches])
-  labels = np.ascontiguousarray(tl[i%num_minibatches])
+for i in range(0, test_mb):
+  features = testf[i*gameLength:(i+1)*gameLength]
+  labels = testl[i*gameLength:(i+1)*gameLength]
   avg_error += trainer.test_minibatch({inputs : features, label : labels})
 
 avg_error = avg_error / test_mb
@@ -162,9 +159,9 @@ classifier_output.save(os.path.join(script_directory, "rps.model"))
 out = softmax(classifier_output)
 num_wins = 0.0
 num_games = 0.0
-for i in range(train_mb + test_mb, num_minibatches):
-  features = np.ascontiguousarray(tf[i%num_minibatches])
-  labels = np.ascontiguousarray(tl[i%num_minibatches])
+for i in range(0, validate_mb):
+  features = validatef[i*gameLength:(i+1)*gameLength]
+  labels = validatel[i*gameLength:(i+1)*gameLength]
   # Iterate through the games in the batch
   for j in range(0, gameLength):
     predicted_label_probs = np.array(out.eval({out.arguments[0]:[features[j]]})).flatten()

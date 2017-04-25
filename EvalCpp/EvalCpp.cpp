@@ -92,7 +92,7 @@ vector<float> PrepareEvalData(string input, int requiredSize)
 
 std::wstring InvokeEval(const string& input, const wstring& modelFile)
 {
-	CNTK::DeviceDescriptor device = DeviceDescriptor::DefaultDevice();
+	CNTK::DeviceDescriptor device = DeviceDescriptor::UseDefaultDevice();
 
 	// Load the trained model from a file
 	auto model = Function::LoadModel(modelFile);
@@ -106,7 +106,7 @@ std::wstring InvokeEval(const string& input, const wstring& modelFile)
 	auto inputData = PrepareEvalData(input, depth);
 	assert(evalData.size() == 7 * depth);
 
-	ValuePtr inputValues = Value::Create<float>(inputVariable.Shape(), { inputData }, DeviceDescriptor::DefaultDevice(), true);
+	ValuePtr inputValues = Value::Create<float>(inputVariable.Shape(), { inputData }, device, true);
 	unordered_map<Variable, ValuePtr> inputs = { { inputVariable, inputValues } };
 
 	auto labels = model->Output();

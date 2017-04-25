@@ -91,49 +91,22 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Cntk.Core-2.0rc1.dll" />
+    <Content Include="Cntk.Core.CSBinding-2.0rc1.dll" />
+    <Content Include="Cntk.Math-2.0rc1.dll" />
+    <Content Include="Cntk.PerformanceProfiler-2.0rc1.dll" />
+    <Content Include="cublas64_80.dll" />
+    <Content Include="cudart64_80.dll" />
+    <Content Include="cudnn64_5.dll" />
+    <Content Include="curand64_80.dll" />
+    <Content Include="cusparse64_80.dll" />
     <Content Include="Global.asax" />
     <Content Include="..\x64\Release\ModelTrainerLib.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\CNTK\CNTKLibrary-2.0.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\CNTKLibraryCSBinding.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\CNTKLibraryManaged-2.0.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\cublas64_80.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\cudart64_80.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\cudnn64_5.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\curand64_80.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\cusparse64_80.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\libiomp5md.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\Math.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\mkl_cntk_p.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\nvml.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\CNTK\PerformanceProfilerDll.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Content Include="libiomp5md.dll" />
+    <Content Include="mkl_cntk_p.dll" />
+    <Content Include="nvml.dll" />
     <Content Include="Web.config" />
     <Content Include="packages.config" />
     <Content Include="CNTK\Models\rps.model" />

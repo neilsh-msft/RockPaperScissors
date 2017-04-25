@@ -1,10 +1,12 @@
 import os, sys, csv
 import numpy as np
+from cntk.ops.functions import load_model
 
 script_directory = os.path.dirname(sys.argv[0])
+network = load_model(os.path.join(script_directory, "rps.model"))
 
-# The model works by using lookback at the previous n moves
-lookbackMoves = 5
+# The model works by using lookback at the previous n moves - as determined by the size of the training set
+lookbackMoves = int(network.arguments[0].shape[0] / 7)
 gameLength = 20
 
 def encodeLabel(move):
@@ -19,12 +21,10 @@ def encodeFeature(hm, cm, wld):
 def defaultMove():
   return [0, 0, 0]
 
-from cntk.ops.functions import load_model
-
-network = load_model(os.path.join(script_directory, "rps.model"))
 previousMoves = np.array([encodeFeature('X', 'X', 1) for x in range(lookbackMoves)]).flatten().tolist()
 
 validMoves = ["R", "P", "S"]
+counterMoves = ["P", "S", "R"]
 moves = [
   ["R", "R", 0],
   ["R", "P", 1],
@@ -53,7 +53,7 @@ def computerMove(moveNumber, previousHM, previousCM):
 
   eval_features = np.array(previousMoves, dtype="float32")
   result = np.array(network.eval({network.arguments[0]:[eval_features]})).flatten()
-  return validMoves[np.argmax(result)]
+  return counterMoves[np.argmax(result)]
   
 def selectWinner(human, computer):
   for move in moves:
@@ -63,7 +63,7 @@ moveNumber = 0
 previousHumanMove = ""
 previousComputerMove = ""
 with open(os.path.join(script_directory, "rps.csv"), 'a') as csvfile:
-  recordWriter = csv.writer(csvfile)
+  recordWriter = csv.writer(csvfile, lineterminator='\n')
   while moveNumber < gameLength:
     hm = humanMove()
     cm = computerMove(moveNumber, previousHumanMove, previousComputerMove)

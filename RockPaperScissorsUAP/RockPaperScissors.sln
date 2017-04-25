@@ -1,9 +1,12 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26228.0
+VisualStudioVersion = 15.0.26403.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RockPaperScissors", "RockPaperScissors.csproj", "{B7BCF4E3-3633-4B4C-A345-C671FBD067B2}"
+	ProjectSection(ProjectDependencies) = postProject
+		{4FB3D220-CC6D-4061-A711-51E25FB76642} = {4FB3D220-CC6D-4061-A711-51E25FB76642}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EvalCpp", "..\EvalCpp\EvalCpp.vcxproj", "{4FB3D220-CC6D-4061-A711-51E25FB76642}"
 EndProject

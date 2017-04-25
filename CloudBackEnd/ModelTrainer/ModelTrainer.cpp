@@ -72,20 +72,21 @@ ModelTrainer::ModelTrainer(const wstring& dataFile, const wstring& modelFile)
 void ModelTrainer::CreateModel()
 {
 	// Define the model from scratch for training
-	size_t inputDim = 7 * lookbackMoves;
+	size_t inputDim = NUMBER_OF_FEATURES;
 	size_t numOutputClasses = 3;
 	size_t cellDim = LSTM_CELL_DIM;
 	size_t hiddenLayersDim = HIDDEN_LAYERS_DIM;
-	CNTK::DeviceDescriptor device = DeviceDescriptor::DefaultDevice();
+	CNTK::DeviceDescriptor device = DeviceDescriptor::UseDefaultDevice();
 
-	_inputs = InputVariable({ inputDim }, CNTK::DataType::Float, L"Feature Vector");
-	_labels = InputVariable({ numOutputClasses }, CNTK::DataType::Float, L"Labels", { Axis::DefaultBatchAxis() });
+	_inputs = InputVariable({ inputDim }, false, CNTK::DataType::Float, L"Feature Vector");
 
 #ifdef LSTM_NETWORK
 	_model = LSTMSequenceClassifierNet(_inputs, numOutputClasses, hiddenLayersDim, cellDim, lookbackMoves, device);
 #else
 	_model = FeedForwardClassifier(_inputs, numOutputClasses, hiddenLayersDim, device);
 #endif
+
+	_labels = InputVariable({ numOutputClasses }, false, CNTK::DataType::Float, L"Labels", { Axis::DefaultBatchAxis() });
 }
 
 FunctionPtr ModelTrainer::FeedForwardClassifier(Variable input, size_t outputClasses, size_t hiddenLayersDim, const DeviceDescriptor& device)
@@ -116,8 +117,8 @@ CNTK::TrainerPtr ModelTrainer::CreateTrainerForModel()
 #ifdef LSTM_NETWORK
 	auto momentum = -1.0 * (GAME_LENGTH / std::log(0.9));
 	auto lossFunction = SquaredError(_model->Output(), _labels, L"Loss Function");
-	auto evalFunction = SquaredError(_model->Output(), _labels, L"Classification Error");
-	auto learningFunction = AdamLearner(_model->Parameters(), LearningRatePerSampleSchedule(0.01), MomentumAsTimeConstantSchedule(momentum), true);
+	auto evalFunction = ClassificationError(_model->Output(), _labels, L"Classification Error"); // SquaredError(_model->Output(), _labels, L"Classification Error");
+	auto learningFunction = FSAdaGradLearner(_model->Parameters(), LearningRatePerSampleSchedule(0.01), MomentumAsTimeConstantSchedule(momentum), true);
 #else
 	auto lossFunction = CrossEntropyWithSoftmax(_model->Output(), _labels, L"Loss Function");
 	auto evalFunction = ClassificationError(_model->Output(), _labels, L"Classification Error");
@@ -143,6 +144,7 @@ void ModelTrainer::Train()
 
 	int minibatchSize = GAME_LENGTH;
 	int numMinibatches = trainingData.size() / minibatchSize;
+	int outputFrequency = 10;
 
 	int trainingPosition = 0;
 	for (int i = 0; i < numMinibatches; i++)
@@ -150,7 +152,7 @@ void ModelTrainer::Train()
 		// Carve off a batch of samples and create feature data
 		vector<vector<float>> inputData;
 		vector<vector<float>> labelData;
-		vector<float> previousMove = loader->EncodeDefaultFeature(lookbackMoves);
+		vector<float> previousMove = loader->EncodeDefaultFeature(1);
 		for (int j = trainingPosition; j < trainingPosition + GAME_LENGTH; j++)
 		{
 			inputData.push_back(previousMove);
@@ -162,19 +164,27 @@ void ModelTrainer::Train()
 			// Shift the previous move state for encoding the next move
 			// We append the next move, then shift left and truncate....
 			previousMove.insert(previousMove.end(), trainingData[j].begin(), trainingData[j].end());
-			std::rotate(previousMove.begin(), previousMove.begin() + 7, previousMove.end());
-			previousMove.resize(lookbackMoves * 7);
+
+			if ((j + 1) % GAME_LENGTH >= lookbackMoves)
+			{
+				std::rotate(previousMove.begin(), previousMove.begin() + 7, previousMove.end());
+				previousMove.resize(lookbackMoves * 7);
+			}
 		}
 
 		// This is a simpler way to do value creation
-		ValuePtr inputValues = Value::Create<float>(_inputs.Shape(), inputData, DeviceDescriptor::DefaultDevice(), true);
-		ValuePtr labelValues = Value::Create<float>(_labels.Shape(), labelData, DeviceDescriptor::DefaultDevice(), true);
+		ValuePtr inputValues = Value::Create<float>(_inputs.Shape(), inputData, DeviceDescriptor::UseDefaultDevice(), true);
+		ValuePtr labelValues = Value::Create<float>(_labels.Shape(), labelData, DeviceDescriptor::UseDefaultDevice(), true);
 
 		std::unordered_map<Variable, ValuePtr> arguments = { { _inputs, inputValues },{ _labels, labelValues } };
-		trainer->TrainMinibatch(arguments, DeviceDescriptor::DefaultDevice());
+		trainer->TrainMinibatch(arguments, CNTK::DeviceDescriptor::UseDefaultDevice());
 		
 		// TODO: Output some progress data....
-		cout << "Minibatch: " << i << ", Loss: " << trainer->PreviousMinibatchLossAverage() << ", Error: " << trainer->PreviousMinibatchEvaluationAverage() * 100 << "%\n";
+		if (i % outputFrequency == 0)
+		{
+			cout << "Minibatch: " << i << ", Loss: " << trainer->PreviousMinibatchLossAverage() << ", Error: " << trainer->PreviousMinibatchEvaluationAverage() * 100 << "%\n";
+		}
+
 		trainingPosition += minibatchSize;
 	}
 

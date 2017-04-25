@@ -3,12 +3,13 @@
 #include <string>
 #include "CNTKLibrary.h"
 
-#define TRAINING_FACTOR   3
-#define GAME_LENGTH		  20
-#define HIDDEN_LAYERS	  3
-#define HIDDEN_LAYERS_DIM 64
-#define LSTM_NETWORK      1
-#define LSTM_CELL_DIM     128
+#define TRAINING_FACTOR    3
+#define NUMBER_OF_FEATURES 7
+#define GAME_LENGTH		   20
+#define HIDDEN_LAYERS	   3
+#define HIDDEN_LAYERS_DIM  64
+#define LSTM_NETWORK       1
+#define LSTM_CELL_DIM      128
 
 namespace CntkTraining
 {

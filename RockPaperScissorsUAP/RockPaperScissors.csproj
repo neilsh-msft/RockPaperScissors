@@ -92,15 +92,16 @@
     <Content Include="Assets\rps.model">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="CNTKLibrary-2.0.dll" />
+    <Content Include="Cntk.Core-2.0rc1.dll" />
+    <Content Include="Cntk.Core.CSBinding-2.0rc1.dll" />
+    <Content Include="Cntk.Math-2.0rc1.dll" />
+    <Content Include="Cntk.PerformanceProfiler-2.0rc1.dll" />
     <Content Include="cublas64_80.dll" />
     <Content Include="cudart64_80.dll" />
     <Content Include="cudnn64_5.dll" />
     <Content Include="curand64_80.dll" />
     <Content Include="cusparse64_80.dll" />
-    <Content Include="EvalCpp.exe" />
     <Content Include="libiomp5md.dll" />
-    <Content Include="Math.dll" />
     <Content Include="mkl_cntk_p.dll" />
     <Content Include="nvml.dll" />
     <Content Include="vcomp140.dll" />

@@ -53,6 +53,7 @@ FunctionPtr Layers::LSTM(Variable input, size_t numOutputClasses, size_t hiddenD
 {
 	FunctionPtr classifierRoot = input;
 	auto pastValueRecurrenceHook = [](const Variable& x) { return PastValue(x); };
+	// auto futureValueRecurrenceHook = [](const Variable& x) { return FutureValue(x); };
 
 	for (size_t i = 0; i < lstmCells; i++)
 	{
@@ -60,14 +61,6 @@ FunctionPtr Layers::LSTM(Variable input, size_t numOutputClasses, size_t hiddenD
 	}
 
 	return classifierRoot;
-
-	/* auto W = Parameter(NDArrayView::RandomUniform<float>({ numOutputClasses, hiddenDim }, -0.5, 0.5, 1, device));
-	auto b = Parameter({ numOutputClasses }, 0.0f, device);
-
-	auto sW = Parameter({}, 0.0f, device);
-	auto expsW = Exp(sW);
-
-	return Plus(Times(W, ElementTimes(expsW, classifierRoot)), b); */
 }
 
 std::pair<FunctionPtr, FunctionPtr> Layers::LSTMPComponentWithSelfStabilization(Variable input, const NDShape& outputShape, const NDShape& cellShape,
@@ -140,7 +133,7 @@ inline FunctionPtr Layers::Identity(CNTK::Variable keep)
 
 inline FunctionPtr Layers::SelectLast(Variable operand)
 {
-	return CNTK::Slice(operand, CNTK::Axis::DefaultDynamicAxis(), -1, 0);
+	return CNTK::Slice(operand, { CNTK::Axis::DefaultDynamicAxis() }, { -1 }, { 0 });
 }
 
 inline FunctionPtr Layers::Stabilize(const Variable& x, const DeviceDescriptor& device)
