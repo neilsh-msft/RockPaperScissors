@@ -10,6 +10,8 @@
 using namespace std;
 using namespace CNTK;
 
+#define NUMBER_OF_FEATURES 7
+
 unordered_map<string, vector<float>> unpack = 
 {
 	{ "R", { 1.0f, 0.0f, 0.0f } },
@@ -63,6 +65,13 @@ vector<float> PrepareEvalData(string input, int requiredSize)
 		stringArray.pop_front();
 	}
 
+	// Deal with pre-padding if the input size was not large enough
+	if ((initialSize / 2) < requiredSize)
+	{
+		for (int j = 0; j < 6; ++j) evalData.push_back(0);
+		evalData.push_back(0);
+	}
+
 	// Now populate the data
 	while (stringArray.size() > 0)
 	{
@@ -80,13 +89,6 @@ vector<float> PrepareEvalData(string input, int requiredSize)
 		evalData.push_back((float)winLoss);
 	}
 
-	// Deal with padding if the input size was not large enough
-	for (int i = 0; i < (int)(requiredSize - initialSize / 2); ++i)
-	{
-		for (int j = 0; j < 6; ++j) evalData.push_back(0);
-		evalData.push_back(1);
-	}
-
 	return evalData;
 }
 
@@ -100,11 +102,13 @@ std::wstring InvokeEval(const string& input, const wstring& modelFile)
 	// Create the inputs and outputs
 	auto inputVariable = model->Arguments()[0];
 	auto shape = inputVariable.Shape();
-	int depth = shape[0];
+
+	// The LSTM model does not specify cell depth - need to figure it out
+	int depth = 3;
 
 	// Prepare input data using the depth from the input file
 	auto inputData = PrepareEvalData(input, depth);
-	assert(evalData.size() == 7 * depth);
+	assert(inputData.size() <= NUMBER_OF_FEATURES * depth && inputData.size() % NUMBER_OF_FEATURES == 0);
 
 	ValuePtr inputValues = Value::Create<float>(inputVariable.Shape(), { inputData }, device, true);
 	unordered_map<Variable, ValuePtr> inputs = { { inputVariable, inputValues } };
@@ -154,7 +158,7 @@ int wmain(int argc, wchar_t**argv)
 		return 1;
 	}
 
-#if true// real input
+#if false // real input
 	string input = GetInputBytes();
 #else // useful for debugging
 	//var input = "R R R R R R R R R R";

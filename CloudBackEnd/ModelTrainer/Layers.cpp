@@ -48,8 +48,7 @@ FunctionPtr Layers::Dense(CNTK::Variable input, size_t outputDim, const DeviceDe
 	return Dense(input, outputDim, CNTK::GlorotUniformInitializer(), Identity, true, 0.0f, device);
 }
 
-
-FunctionPtr Layers::LSTM(Variable input, size_t numOutputClasses, size_t hiddenDim, size_t cellDim, size_t lstmCells, const DeviceDescriptor& device)
+FunctionPtr Layers::LSTM(Variable input, size_t numOutputClasses, size_t hiddenDim, size_t cellDim, size_t lstmCells, bool enableSelfStabilization, const DeviceDescriptor& device)
 {
 	FunctionPtr classifierRoot = input;
 	auto pastValueRecurrenceHook = [](const Variable& x) { return PastValue(x); };
@@ -57,20 +56,20 @@ FunctionPtr Layers::LSTM(Variable input, size_t numOutputClasses, size_t hiddenD
 
 	for (size_t i = 0; i < lstmCells; i++)
 	{
-		classifierRoot = LSTMPComponentWithSelfStabilization(classifierRoot, { hiddenDim }, { cellDim }, pastValueRecurrenceHook, pastValueRecurrenceHook, device).first;
+		classifierRoot = LSTMPComponent(classifierRoot, { hiddenDim }, { cellDim }, pastValueRecurrenceHook, pastValueRecurrenceHook, enableSelfStabilization, device).first;
 	}
 
 	return classifierRoot;
 }
 
-std::pair<FunctionPtr, FunctionPtr> Layers::LSTMPComponentWithSelfStabilization(Variable input, const NDShape& outputShape, const NDShape& cellShape,
+std::pair<FunctionPtr, FunctionPtr> Layers::LSTMPComponent(Variable input, const NDShape& outputShape, const NDShape& cellShape,
 	const std::function<FunctionPtr(const Variable&)>& recurrenceHookH, const std::function<FunctionPtr(const Variable&)>& recurrenceHookC,
-	const DeviceDescriptor& device)
+	bool enableSelfStabilization, const DeviceDescriptor& device)
 {
 	auto dh = PlaceholderVariable(outputShape, input.DynamicAxes());
 	auto dc = PlaceholderVariable(cellShape, input.DynamicAxes());
 
-	auto LSTMCell = LSTMPCellWithSelfStabilization(input, dh, dc, device);
+	auto LSTMCell = LSTMPCell(input, dh, dc, enableSelfStabilization, device);
 	auto actualDh = recurrenceHookH(LSTMCell.first);
 	auto actualDc = recurrenceHookC(LSTMCell.second);
 
@@ -80,7 +79,7 @@ std::pair<FunctionPtr, FunctionPtr> Layers::LSTMPComponentWithSelfStabilization(
 	return{ LSTMCell.first, LSTMCell.second };
 }
 
-std::pair<FunctionPtr, FunctionPtr> Layers::LSTMPCellWithSelfStabilization(Variable input, Variable prevOutput, Variable prevCellState, const DeviceDescriptor& device)
+std::pair<FunctionPtr, FunctionPtr> Layers::LSTMPCell(Variable input, Variable prevOutput, Variable prevCellState, bool enableSelfStabilization, const DeviceDescriptor& device)
 {
 	size_t outputDim = prevOutput.Shape()[0];
     size_t cellDim = prevCellState.Shape()[0];
@@ -98,8 +97,17 @@ std::pair<FunctionPtr, FunctionPtr> Layers::LSTMPCellWithSelfStabilization(Varia
         return Parameter({ dim }, DataType::Float, GlorotUniformInitializer(1.0, 1, 0, seed2++), device);
     };
 
-    auto stabilizedPrevOutput = Stabilize(prevOutput, device);
-    auto stabilizedPrevCellState = Stabilize(prevCellState, device);
+	FunctionPtr stabilizedPrevOutput, stabilizedPrevCellState;
+	if (enableSelfStabilization)
+	{
+		stabilizedPrevOutput = Stabilize(prevOutput, device);
+		stabilizedPrevCellState = Stabilize(prevCellState, device);
+	}
+	else
+	{
+		stabilizedPrevOutput = prevOutput;
+		stabilizedPrevCellState = prevCellState;
+	}
 
     auto projectInput = [input, cellDim, createBiasParam, createProjectionParam]() {
         return createBiasParam(cellDim) + Times(createProjectionParam(cellDim), input);
